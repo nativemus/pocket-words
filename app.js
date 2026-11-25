@@ -4,8 +4,8 @@ import { loadSenses, sensesReady, sensesOf, phrasesOf, senseCount } from './sens
 import { loadEndings, endingsReady, endings, frameOf, topicBlocks, assocOf, expand, phraseEnds } from './endings.js';
 import { loadPunch, punchReady, punchStress, marked, punOf, turnsOf, candidates, leadWords } from './punch.js';
 import { onHum, loadTakes, takes, takeBy, takesOf, putTake, dropTake, fileOf, startRec, stopRec, recOn, recState, recSupported, onRecAuto, playing, playPos, warm, togglePlay, setLoop, stopPlay, seek, beats } from './hum.js';
-import { onBeat, beatState, beatPhase, beatPos, beatDur, stopBeat, startMetro, startBeat, holdBeat, wakeBeat, seekBeat, setBpm, setVol, setClick, tap, tapReset } from './beat.js';
-const VERSION = '2.0';
+import { onBeat, beatState, beatPhase, beatPos, beatDur, stopBeat, startMetro, startBeat, holdBeat, wakeBeat, seekBeat, setBpm, setVol, setClick, setWood, WOODS, tap, tapReset } from './beat.js';
+const VERSION = '2.0.1';
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c]));
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
@@ -765,7 +765,7 @@ function beatSheet(k, d, L){
   const tempo = '<div class="bpmrow"><button class="btn" data-act="bpm" data-v="-1">−</button><div class="bpmv"><b id="bpmv">' + fmtBpm(bpm) + '</b><small>BPM</small></div><button class="btn" data-act="bpm" data-v="1">+</button></div><div class="row" style="justify-content:center;margin-bottom:10px"><button class="btn" data-act="bpm" data-v="x.5">÷2</button>' + DOTS + '<button class="btn" data-act="bpm" data-v="x2">×2</button></div>' +
     '<button class="tpad" id="tpad">Стучи в такт<small id="tcount">' + (metro ? 'от четырёх ударов' : on ? 'начни с «раз»' : 'включи бит и стучи, начни с «раз»') + '</small></button>';
   L.innerHTML = sheet('Бит и метроном', t ? 'к тексту «' + esc(titleOf(t).slice(0, 30)) + '»' : '', '<div class="seg"><button data-act="btab" data-v="metro" class="' + (metro ? 'on' : '') + '">Метроном</button><button data-act="btab" data-v="beat" class="' + (metro ? '' : 'on') + '">Бит</button></div>' +
-    (metro ? tempo + '<button class="btn big main" data-act="metro">' + (on ? '■ Стоп' : '▶ Метроном') + '</button><div class="muted" style="margin-top:12px">Громкость щелчка</div><input type="range" id="bvol" min="0.1" max="1" step="0.05" value="' + s.vol + '">' + (t && t.bpm && !mine ? '<button class="btn big" data-act="bpmoff">Убрать темп с этого текста</button>' : '')
+    (metro ? tempo + '<button class="btn big main" data-act="metro">' + (on ? '■ Стоп' : '▶ Метроном') + '</button><div class="muted" style="margin:12px 0 7px">Звук</div><div class="chips">' + WOODS.map(([k2, n]) => '<button class="chip rh' + (s.wood === k2 ? ' in' : '') + '" data-act="wood" data-v="' + k2 + '">' + n + '</button>').join('') + '</div><div class="muted" style="margin-top:12px">Громкость щелчка</div><input type="range" id="bvol" min="0.1" max="1" step="0.05" value="' + s.vol + '">' + (t && t.bpm && !mine ? '<button class="btn big" data-act="bpmoff">Убрать темп с этого текста</button>' : '')
       : (b ? '<div class="bname">' + esc(b.name) + '<small>' + mmss(b.dur) + '</small></div><input type="range" id="bpos" min="0" max="1000" value="0">' + tempo + '<div class="row" style="flex-wrap:nowrap;margin-top:10px"><button class="btn main humbig" data-act="beatgo" data-v="' + b.id + '">' + (on ? '■ Стоп' : '▶ Бит') + '</button><button class="btn humbig' + (s.click ? ' lon' : '') + '" data-act="beatclick">щелчок поверх</button></div>' + (mine ? '<button class="btn big" data-act="beatnone">Убрать бит с этого текста</button>' : '') : '') +
         '<div class="grp">Мои биты</div>' + (all.length ? all.map(x => '<div class="humitem">' + '<button class="hb' + (s.on === 'beat' && s.id === x.id ? ' on' : '') + '" data-act="beatgo" data-v="' + x.id + '"><i>' + (s.on === 'beat' && s.id === x.id ? '■' : '▶') + '</i></button><button class="humt" data-act="beatpick" data-v="' + x.id + '"><b>' + esc(x.name) + '</b><small>' + mmss(x.dur) + ' · ' + fmtBpm(x.bpm) + ' BPM' + (t && t.beatId === x.id ? ' · в этом тексте' : t ? ' · нажми, чтобы взять' : '') + '</small></button><button class="hm" data-act="beatdel" data-v="' + x.id + '">✕</button></div>').join('') : '<div class="empty">Битов пока нет</div>') +
         '<button class="btn big' + (all.length ? '' : ' main') + '" data-act="beatadd">Загрузить бит из «Файлов»</button>'));
@@ -799,6 +799,7 @@ function beatAct(a, v){
     case 'beatplay': { const b = beatOf(t); if (s.on) { stopBeat(); return true; } stopPlay(); if (b) go(b); else startMetro(t.bpm || 90); return true; }
     case 'metro': if (s.on === 'metro') stopBeat(); else { stopPlay(); const x = (t && t.bpm) || S.bpm || 90; if (t && !t.bpm) { t.bpm = x; save(t); } startMetro(x); } return true;
     case 'beatgo': { const b = beats().find(x => x.id === v); if (!b) return true; if (s.on === 'beat' && s.id === v) stopBeat(); else { stopPlay(); go(b); } return true; }
+    case 'wood': setWood(v, true); kvSet('wood', v); renderSheet(); return true;
     case 'beatpick': { const b = beats().find(x => x.id === v); if (b && t) { t.beatId = v; save(t); drawBeatBar(); } if (b && !(s.on === 'beat' && s.id === v)) go(b); else renderSheet(); return true; }
     case 'beatnone': if (t) { t.beatId = ''; save(t); if (s.on) stopBeat(); drawBeatBar(); renderSheet(); } return true;
     case 'bpmoff': if (t) { t.bpm = 0; save(t); if (s.on) stopBeat(); drawBeatBar(); renderSheet(); } return true;
@@ -1352,7 +1353,7 @@ let tt; function toast(s){ const el = $('#toast'); el.textContent = s; el.classL
     navigator.serviceWorker.register('sw.js').then(r => r.update()).catch(() => {});
   }
   render();
-  STOCK = (await kvGet('stock')) || [];
+  STOCK = (await kvGet('stock')) || []; setWood((await kvGet('wood')) || 'block');
   loadTakes().then(() => { if (!takes().length || S.sheet) return; if (S.view === 'text') drawHumRow(); else if (S.tab === 'notes') render(); }).catch(() => {});
   fitKeyboard();
   // словарь и рифмы — заранее, в фоне: чтобы вкладки и «Рифма» открывались сразу
