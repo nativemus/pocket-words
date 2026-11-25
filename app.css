@@ -401,8 +401,10 @@ span.humt{flex:1;min-width:0}
 .bpmrow{display:flex;align-items:center;justify-content:center;gap:18px;margin:4px 0 8px}
 .bpmrow .btn{width:50px;height:50px;border-radius:50%;font-size:24px;padding:0}
 .bpmv{min-width:118px;text-align:center}
-.bpmv b{display:block;font-size:44px;line-height:1;font-weight:800;font-variant-numeric:tabular-nums}
-.bpmv small{color:var(--muted);font-size:12px}
+.bpmv{display:block}
+.bpmv input{display:block;width:130px;margin:0 auto;border:none;border-bottom:1.5px dashed var(--panel3);border-radius:0;background:none;text-align:center;color:var(--ink);padding:0 0 3px;outline:none;caret-color:var(--accent);font-family:inherit;font-size:44px;line-height:1;font-weight:800;font-variant-numeric:tabular-nums}
+.bpmv input:focus{border-bottom:1.5px solid var(--accent)}
+.bpmv small{display:block;margin-top:4px;color:var(--muted);font-size:12px}
 .tpad{display:block;width:100%;min-height:92px;border:1.5px solid var(--accent);border-radius:18px;background:rgba(245,197,66,.08);font-size:18px;font-weight:700;touch-action:none;-webkit-user-select:none;user-select:none}
 .tpad small{display:block;color:var(--muted);font-size:13px;font-weight:400;margin-top:3px}
 .tpad.hit{background:rgba(245,197,66,.34)}
