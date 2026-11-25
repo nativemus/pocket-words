@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Стенд">
+
+<title>Тест-стенд</title>
+<style>
+  *{box-sizing:border-box}
+  body{margin:0 auto;max-width:820px;background:#f3f3f1;color:#1d1d1b;font:16px/1.45 -apple-system,system-ui,"Segoe UI",Roboto,sans-serif;
+    padding:calc(env(safe-area-inset-top) + 14px) 14px calc(env(safe-area-inset-bottom) + 40px)}
+  h1{font-size:22px;margin:0 0 4px}
+  h2{font-size:17px;margin:0 0 6px}
+  .sub{color:#6b6b66;font-size:14px;margin:0 0 12px}
+  .card{background:#fff;border:1px solid #dcdcd9;border-radius:14px;padding:13px 14px;margin-bottom:12px}
+  .muted{color:#777;font-size:13.5px}
+  button{font:inherit;font-size:15px;border:1px solid #bdbdb8;background:#f4f4f2;border-radius:12px;padding:9px 13px;margin:4px 6px 4px 0;color:#1d1d1b}
+  button.main{background:#2f2f2d;color:#fff;border-color:#2f2f2d}
+  button:disabled{opacity:.45}
+  .log{font:13px/1.4 ui-monospace,Menlo,Consolas,monospace;background:#f6f6f4;border-radius:10px;padding:8px 10px;margin-top:8px;white-space:pre-wrap;word-break:break-word;max-height:320px;overflow:auto}
+  .bar{height:8px;background:#e4e4e0;border-radius:4px;overflow:hidden;margin-top:6px}
+  .bar div{height:100%;width:0;background:#2f2f2d;transition:width .2s}
+  .ok{color:#2f6a2f}.bad{color:#a33}
+  pre.prompt{white-space:pre-wrap;font:13px/1.4 ui-monospace,Menlo,Consolas,monospace;background:#f6f6f4;border:1px solid #e1e1de;border-radius:10px;padding:9px 10px;margin:6px 0}
+</style>
+</head>
+<body>
+<h1>Тест-стенд</h1>
+<p class="sub">Версия 3. Языковых моделей в телефоне больше нет: варианты строк будут через «Спросить у ИИ». Здесь проверяем три лёгкие вещи. Всё считается на устройстве и никуда не отправляется.</p>
+
+<div class="card">
+  <h2>0. Устройство</h2>
+  <div id="dev" class="log">проверяю…</div>
+</div>
+
+<div class="card">
+  <h2>1. Смысловая модель и поиск</h2>
+  <p class="muted">Около 120 МБ, скачивается один раз. Она подбирает карточки словаря по смыслу. Проверяем скорость, поиск среди 100 000 карточек (словарь в 100 раз больше нынешнего) и не греется ли телефон.</p>
+  <button class="main" id="bEmb">Запустить</button>
+  <div class="bar"><div id="pEmb"></div></div>
+  <div id="oEmb" class="log" hidden></div>
+</div>
+
+<div class="card">
+  <h2>2. Кнопка «Скопировать»</h2>
+  <p class="muted">Так будет выглядеть запрос для ИИ. Нажми «Скопировать», открой DeepSeek или Claude и вставь: должно вставиться целиком.</p>
+<pre class="prompt" id="prompt">Ты соавтор рэп-текстов. Помоги продолжить строку.
+Строка: Вечер, за окном опять снег
+Следующая строка должна закончиться словом: дома
+Размер: около 8 слогов, рисунок: та-ТА-та-та-ТА-та-та-а
+Из словаря: Иней — ложится за ночь на всё, что остыло
+Напиши 8 вариантов следующей строки: разговорный русский, конкретные действия, без пафоса и штампов. Только строки, каждая с новой строки.</pre>
+  <button class="main" id="bCp">Скопировать</button>
+  <div id="oCp" class="log" hidden></div>
+</div>
+
+<div class="card">
+  <h2>3. Микрофон и хранилище</h2>
+  <p class="muted">Запись 4 секунды, проигрывание, сохранение в память. Проверь дважды: в Safari и с экрана «Домой» («Поделиться» → «На экран „Домой“»).</p>
+  <button class="main" id="bMic">Записать 4 секунды</button>
+  <div id="oMic" class="log" hidden></div>
+  <audio id="aMic" controls hidden style="width:100%;margin-top:8px"></audio>
+</div>
+
+<div class="card">
+  <h2>Отчёт</h2>
+  <p class="muted">Нажми «Скопировать отчёт» и пришли текст в чат.</p>
+  <button class="main" id="bCopy">Скопировать отчёт</button>
+  <button id="bClear">Очистить</button>
+  <div id="report" class="log"></div>
+</div>
+
+<script type="module">
+import { pipeline, env } from 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@4.3.2';
+env.allowLocalModels = false;
+const KEY = 'lab-results-v3';
+const $ = id => document.getElementById(id);
+const now = () => performance.now();
+const loadR = () => { try { return JSON.parse(localStorage.getItem(KEY)) || []; } catch { return []; } };
+const saveR = a => localStorage.setItem(KEY, JSON.stringify(a));
+function upsert(rec){ const a = loadR(); const i = a.findIndex(r => r.id === rec.id); if (i >= 0) a[i] = rec; else a.push(rec); saveR(a); render(); }
+const standalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+
+async function checkDevice(){
+  let s = 'Открыт ' + (standalone() ? 'с экрана «Домой»' : 'в браузере') + '\n';
+  if (navigator.storage?.estimate) { const e = await navigator.storage.estimate(); s += 'Место для данных: ' + Math.round((e.quota || 0) / 1048576) + ' МБ, занято ' + Math.round((e.usage || 0) / 1048576) + ' МБ\n'; }
+  $('dev').textContent = s + navigator.userAgent;
+}
+
+// 1. смысловая модель
+const CARDS = ['Moncler — пуховики, холод как статус','Тайм-аут — пауза по просьбе тренера','Иней — ложится за ночь на всё, что остыло',
+  'Бессонница — не можешь уснуть','Пит-стоп — остановка в гонке на две секунды','Пустая квартира — все ушли',
+  'Ferrari — красные гоночные машины','Снежинки — двух одинаковых не бывает','Штрафной — бросок в тишине'];
+$('bEmb').onclick = async () => {
+  const o = $('oEmb'); o.hidden = false; o.textContent = 'гружу модель…'; $('bEmb').disabled = true;
+  const rec = { id:'emb', status:'started' }; upsert(rec);
+  try {
+    const t0 = now();
+    const ext = await pipeline('feature-extraction', 'Xenova/multilingual-e5-small', { dtype:'q8', device:'wasm',
+      progress_callback: p => { if (p.status === 'progress' && p.total) $('pEmb').style.width = Math.round(p.loaded / p.total * 100) + '%'; } });
+    rec.loadMs = Math.round(now() - t0); $('pEmb').style.width = '100%';
+    const q = 'холодно, один дома вечером';
+    const t1 = now(); const qv = (await ext('query: ' + q, { pooling:'mean', normalize:true })).data; rec.embedMs = Math.round(now() - t1);
+    const cv = await ext(CARDS.map(c => 'passage: ' + c), { pooling:'mean', normalize:true }); const dim = qv.length;
+    const sims = CARDS.map((c, i) => { let s = 0; for (let k = 0; k < dim; k++) s += qv[k] * cv.data[i * dim + k]; return [s, c]; }).sort((a, b) => b[0] - a[0]);
+    rec.top = sims.slice(0, 3).map(x => x[1].split(' — ')[0]);
+    const N = 100000, base = new Int8Array(N * dim); for (let i = 0; i < base.length; i++) base[i] = (Math.random() * 254 - 127) | 0;
+    const qi = new Int8Array(dim); for (let k = 0; k < dim; k++) qi[k] = Math.max(-127, Math.min(127, Math.round(qv[k] * 400)));
+    const t2 = now(); const best = new Float32Array(10).fill(-1e9);
+    for (let i = 0; i < N; i++) { let s = 0, off = i * dim; for (let k = 0; k < dim; k++) s += base[off + k] * qi[k]; if (s > best[9]) { best[9] = s; best.sort((a, b) => b - a); } }
+    rec.searchMs = Math.round(now() - t2); rec.status = 'ok'; upsert(rec);
+    o.innerHTML = '<span class="ok">Готово.</span>\nЗагрузка: ' + (rec.loadMs / 1000).toFixed(1) + ' с\nСмысл одной строки: ' + rec.embedMs + ' мс\n' +
+      'Ближе всего к «' + q + '»:\n  ' + sims.slice(0, 3).map(x => x[1]).join('\n  ') + '\nПоиск среди 100 000 карточек: ' + rec.searchMs + ' мс\nТелефон греется? Напиши в чат.';
+    await ext.dispose?.();
+  } catch (e) { rec.status = 'error'; rec.error = String(e?.message || e); upsert(rec); o.innerHTML = '<span class="bad">Ошибка:</span> ' + rec.error; }
+  $('bEmb').disabled = false;
+};
+
+// 2. копирование
+$('bCp').onclick = async () => {
+  const o = $('oCp'); o.hidden = false; const txt = $('prompt').textContent; const rec = { id:'copy-' + (standalone() ? 'home' : 'browser'), where: standalone() ? 'экран «Домой»' : 'браузер' };
+  try { await navigator.clipboard.writeText(txt); rec.status = 'ok'; o.innerHTML = '<span class="ok">Скопировано.</span> Вставь в DeepSeek или Claude и проверь, что пришло целиком.'; }
+  catch (e) { try { const t = document.createElement('textarea'); t.value = txt; document.body.appendChild(t); t.select(); const ok = document.execCommand('copy'); t.remove();
+      rec.status = ok ? 'ok (запасной способ)' : 'error'; o.innerHTML = ok ? '<span class="ok">Скопировано запасным способом.</span>' : '<span class="bad">Не скопировалось.</span>'; }
+    catch (e2) { rec.status = 'error'; rec.error = String(e?.message || e); o.innerHTML = '<span class="bad">Ошибка:</span> ' + rec.error; } }
+  upsert(rec); $('bCp').textContent = 'Скопировано ✓'; setTimeout(() => $('bCp').textContent = 'Скопировать', 1500);
+};
+
+// 3. микрофон
+function idbPut(blob){ return new Promise((res, rej) => { const r = indexedDB.open('lab', 1);
+  r.onupgradeneeded = () => r.result.createObjectStore('rec');
+  r.onsuccess = () => { const tx = r.result.transaction('rec', 'readwrite'); tx.objectStore('rec').put(blob, 'last');
+    tx.oncomplete = () => { const g = r.result.transaction('rec').objectStore('rec').get('last'); g.onsuccess = () => res(g.result); g.onerror = rej; }; tx.onerror = rej; };
+  r.onerror = rej; }); }
+$('bMic').onclick = async () => {
+  const o = $('oMic'); o.hidden = false; $('bMic').disabled = true;
+  const rec = { id:'mic-' + (standalone() ? 'home' : 'browser'), where: standalone() ? 'экран «Домой»' : 'браузер', status:'started' }; upsert(rec);
+  try { if (navigator.storage?.persist) rec.persist = await navigator.storage.persist();
+    const st = await navigator.mediaDevices.getUserMedia({ audio:true }); const mr = new MediaRecorder(st), ch = [];
+    mr.ondataavailable = e => ch.push(e.data); o.textContent = 'Запись… напевай';
+    const done = new Promise(r => mr.onstop = r); mr.start(); await new Promise(r => setTimeout(r, 4000)); mr.stop(); await done; st.getTracks().forEach(t => t.stop());
+    const blob = new Blob(ch, { type: mr.mimeType }); rec.mime = mr.mimeType; rec.kb = Math.round(blob.size / 1024);
+    const back = await idbPut(blob); rec.storedKb = back ? Math.round(back.size / 1024) : 0;
+    $('aMic').hidden = false; $('aMic').src = URL.createObjectURL(back || blob); rec.status = rec.kb ? 'ok' : 'error'; upsert(rec);
+    o.innerHTML = '<span class="ok">Записалось.</span> ' + rec.mime + ', ' + rec.kb + ' КБ, из памяти прочитано ' + rec.storedKb + ' КБ. Нажми ▶ и проверь, что слышно.';
+  } catch (e) { rec.status = 'error'; rec.error = String(e?.message || e); upsert(rec); o.innerHTML = '<span class="bad">Ошибка:</span> ' + rec.error; }
+  $('bMic').disabled = false;
+};
+
+// отчёт
+function render(){
+  const a = loadR();
+  $('report').textContent = a.length ? a.map(r => {
+    if (r.id === 'emb') return '• Смысловая: ' + (r.status === 'ok' ? 'загрузка ' + (r.loadMs / 1000).toFixed(1) + ' с, строка ' + r.embedMs + ' мс, поиск 100к ' + r.searchMs + ' мс, ближе всего: ' + r.top.join(', ') : r.status === 'started' ? 'не дошло до конца' : 'ошибка ' + r.error);
+    if (r.id.startsWith('copy')) return '• Копирование (' + r.where + '): ' + r.status + (r.error ? ' ' + r.error : '');
+    if (r.id.startsWith('mic')) return '• Микрофон (' + r.where + '): ' + (r.status === 'ok' ? r.mime + ', ' + r.kb + ' КБ, из памяти ' + r.storedKb + ' КБ, защита ' + (r.persist ? 'да' : 'нет') : r.status === 'started' ? 'не закончилось' : 'ошибка ' + r.error);
+    return ''; }).join('\n') : 'пока пусто';
+}
+$('bCopy').onclick = async () => { const txt = 'Тест-стенд v3\n' + $('dev').textContent + '\n\n' + $('report').textContent;
+  try { await navigator.clipboard.writeText(txt); } catch { const t = document.createElement('textarea'); t.value = txt; document.body.appendChild(t); t.select(); document.execCommand('copy'); t.remove(); }
+  $('bCopy').textContent = 'Скопировано'; setTimeout(() => $('bCopy').textContent = 'Скопировать отчёт', 1500); };
+$('bClear').onclick = () => { if (confirm('Стереть результаты на этом устройстве?')) { saveR([]); render(); } };
+checkDevice(); render();
+</script>
+</body>
+</html>
