@@ -1,13 +1,13 @@
 // Бит и метроном: темп отстуком, бит из «Файлов» по кругу, клик поверх. Записи лежат там же, где напевы.
 import { warm, urlOf } from './hum.js';
-const B = { on:'', id:'', meta:null, bpm:90, vol:.8, click:false, wood:'block', el:null, ctx:null, gain:null, timer:0, n:0, t0:0, taps:[], last:-1, change:() => {}, err:() => {} };
+const B = { on:'', id:'', meta:null, bpm:90, vol:.8, click:false, wood:'mech', raw:null, mech:null, el:null, ctx:null, gain:null, timer:0, n:0, t0:0, taps:[], last:-1, change:() => {}, err:() => {} };
 export const onBeat = (f, e) => { B.change = f; B.err = e || (() => {}); };
 export const beatState = () => ({ on:B.on, id:B.id, bpm:B.bpm, vol:B.vol, click:B.click, wood:B.wood });
 const session = type => { try { if (navigator.audioSession) navigator.audioSession.type = type; } catch (e) {} };
-function ctx(){ if (!B.ctx || B.ctx.state === 'closed') { const C = window.AudioContext || window.webkitAudioContext; B.ctx = new C(); B.gain = B.ctx.createGain(); B.gain.gain.value = B.vol; B.gain.connect(B.ctx.destination); }
+function ctx(){ if (!B.ctx || B.ctx.state === 'closed') { const C = window.AudioContext || window.webkitAudioContext; B.ctx = new C(); B.gain = B.ctx.createGain(); B.gain.gain.value = B.vol; B.gain.connect(B.ctx.destination); sample.then(decode); }
   if (B.ctx.state !== 'running') B.ctx.resume().catch(() => {}); return B.ctx; }
 // деревянный щелчок: затухающие тоны бруска и короткий сухой удар. [частота, громкость, затухание в секундах]
-export const WOODS = [['block', 'коробочка'], ['log', 'глухое дерево'], ['sticks', 'палочки']];
+export const WOODS = [['mech', 'механический'], ['block', 'коробочка'], ['log', 'глухое дерево'], ['sticks', 'палочки']];
 const WOOD = {
   block:{ f:760, m:[[1, 1, .026], [1.52, .5, .017], [2.74, .22, .009], [4.1, .08, .005]], k:.4, lp:.35, up:1.26 },
   log:{ f:395, m:[[1, 1, .04], [1.68, .42, .024], [2.9, .16, .012]], k:.5, lp:.16, up:1.22 },
@@ -17,8 +17,11 @@ function woodBuf(one){ const c = B.ctx, key = B.wood + one + c.sampleRate; if (W
   for (let i = 0; i < n; i++) { const x = i / sr; let s = 0; for (const [r, a, dc] of w.m) s += a * Math.exp(-x / dc) * Math.sin(6.28318 * f * r * x);
     lp += w.lp * ((Math.random() * 2 - 1) - lp); s += w.k * lp * Math.exp(-x / .0028); d[i] = s * Math.min(1, x / .0006); top = Math.max(top, Math.abs(d[i])); }
   for (let i = 0; i < n; i++) d[i] *= (one ? .95 : .62) / top; WB.set(key, b); return b; }
-function tick(at, one){ const s = B.ctx.createBufferSource(); s.buffer = woodBuf(!!one); s.connect(B.gain); s.start(at); }
-export function setWood(k, hear){ B.wood = WOOD[k] ? k : 'block'; if (hear && B.on !== 'metro') { session('playback'); const c = ctx(), t = c.currentTime + .06; tick(t, true); [1, 2, 3].forEach(i => tick(t + i * .42, false)); } }
+// живой удар механического метронома; «раз» чуть выше и громче
+const sample = fetch('data/click.wav').then(r => r.ok ? r.arrayBuffer() : null).then(b => { B.raw = b; }).catch(() => {});
+const decode = () => !B.raw || B.mech || !B.ctx ? null : new Promise(res => B.ctx.decodeAudioData(B.raw.slice(0), b => { B.mech = b; res(); }, () => res()));
+function tick(at, one){ const s = B.ctx.createBufferSource(); if (B.wood === 'mech' && B.mech) { const g = B.ctx.createGain(); s.buffer = B.mech; s.playbackRate.value = one ? 1.13 : 1; g.gain.value = one ? 1 : .68; s.connect(g); g.connect(B.gain); } else { s.buffer = woodBuf(!!one); s.connect(B.gain); } s.start(at); }
+export function setWood(k, hear){ B.wood = WOOD[k] ? k : 'mech'; if (!hear || B.on === 'metro') return; session('playback'); ctx(); (B.wood === 'mech' && !B.mech ? sample.then(decode) : Promise.resolve()).then(() => { if (B.on === 'metro') return; const t = B.ctx.currentTime + .06; tick(t, true); [1, 2, 3].forEach(i => tick(t + i * .42, false)); }); }
 const per = () => 60 / B.bpm;
 // щелчки ставятся с запасом, чтобы темп не плавал
 function pump(){

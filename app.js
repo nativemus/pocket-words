@@ -5,7 +5,7 @@ import { loadEndings, endingsReady, endings, frameOf, topicBlocks, assocOf, expa
 import { loadPunch, punchReady, punchStress, marked, punOf, turnsOf, candidates, leadWords } from './punch.js';
 import { onHum, loadTakes, takes, takeBy, takesOf, putTake, dropTake, fileOf, startRec, stopRec, recOn, recState, recSupported, onRecAuto, playing, playPos, warm, togglePlay, setLoop, stopPlay, seek, beats } from './hum.js';
 import { onBeat, beatState, beatPhase, beatPos, beatDur, stopBeat, startMetro, startBeat, holdBeat, wakeBeat, seekBeat, setBpm, setVol, setClick, setWood, WOODS, tap, tapReset } from './beat.js';
-const VERSION = '2.0.2';
+const VERSION = '2.0.3';
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c]));
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
@@ -801,7 +801,7 @@ function beatAct(a, v){
     case 'beatplay': { const b = beatOf(t); if (s.on) { stopBeat(); return true; } stopPlay(); if (b) go(b); else startMetro(t.bpm || 90); return true; }
     case 'metro': if (s.on === 'metro') stopBeat(); else { stopPlay(); const x = (t && t.bpm) || S.bpm || 90; if (t && !t.bpm) { t.bpm = x; save(t); } startMetro(x); } return true;
     case 'beatgo': { const b = beats().find(x => x.id === v); if (!b) return true; if (s.on === 'beat' && s.id === v) stopBeat(); else { stopPlay(); go(b); } return true; }
-    case 'wood': setWood(v, true); kvSet('wood', v); renderSheet(); return true;
+    case 'wood': setWood(v, true); kvSet('wood2', v); renderSheet(); return true;
     case 'beatpick': { const b = beats().find(x => x.id === v); if (b && t) { t.beatId = v; save(t); drawBeatBar(); } if (b && !(s.on === 'beat' && s.id === v)) go(b); else renderSheet(); return true; }
     case 'beatnone': if (t) { t.beatId = ''; save(t); if (s.on) stopBeat(); drawBeatBar(); renderSheet(); } return true;
     case 'bpmoff': if (t) { t.bpm = 0; save(t); if (s.on) stopBeat(); drawBeatBar(); renderSheet(); } return true;
@@ -1355,7 +1355,7 @@ let tt; function toast(s){ const el = $('#toast'); el.textContent = s; el.classL
     navigator.serviceWorker.register('sw.js').then(r => r.update()).catch(() => {});
   }
   render();
-  STOCK = (await kvGet('stock')) || []; setWood((await kvGet('wood')) || 'block');
+  STOCK = (await kvGet('stock')) || []; setWood((await kvGet('wood2')) || 'mech');
   loadTakes().then(() => { if (!takes().length || S.sheet) return; if (S.view === 'text') drawHumRow(); else if (S.tab === 'notes') render(); }).catch(() => {});
   fitKeyboard();
   // словарь и рифмы — заранее, в фоне: чтобы вкладки и «Рифма» открывались сразу
