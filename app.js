@@ -3,8 +3,9 @@ import { stem, toks, headOf, hooksOf, bestHook, hookList, buildIndex, cardByHead
 import { loadSenses, sensesReady, sensesOf, phrasesOf, senseCount } from './senses.js';
 import { loadEndings, endingsReady, endings, frameOf, topicBlocks, assocOf, expand, phraseEnds } from './endings.js';
 import { loadPunch, punchReady, punchStress, marked, punOf, turnsOf, candidates, leadWords } from './punch.js';
-import { onHum, loadTakes, takes, takeBy, takesOf, putTake, dropTake, fileOf, startRec, stopRec, recOn, recState, recSupported, onRecAuto, playing, playPos, warm, togglePlay, setLoop, seek } from './hum.js';
-const VERSION = '1.9';
+import { onHum, loadTakes, takes, takeBy, takesOf, putTake, dropTake, fileOf, startRec, stopRec, recOn, recState, recSupported, onRecAuto, playing, playPos, warm, togglePlay, setLoop, stopPlay, seek, beats } from './hum.js';
+import { onBeat, beatState, beatPhase, beatPos, beatDur, stopBeat, startMetro, startBeat, holdBeat, wakeBeat, seekBeat, setBpm, setVol, setClick, tap, tapReset } from './beat.js';
+const VERSION = '2.0';
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c]));
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
@@ -110,7 +111,7 @@ function renderNotes(){
   if (S.seg === 'texts') { const l = all.filter(t => !single(t)); body += '<div class="muted" style="margin:0 2px 8px">Свайп влево по тексту — в архив или удалить.</div>' + (l.length ? l.map(t => itemHTML(t)).join('') : '<div class="empty">Текстов пока нет</div>'); }
   else if (S.seg === 'arch') { const l = every.filter(t => t.archived); body += '<div class="muted" style="margin:0 2px 8px">Убранные тексты. Свайп влево — вернуть или удалить насовсем.</div>' + (l.length ? l.map(t => itemHTML(t)).join('') : '<div class="empty">Архив пуст</div>'); }
   else if (S.seg === 'starts') { const l = all.filter(single); body += '<div class="muted" style="margin:0 2px 8px">Одиночные строки: то, что записал и ещё не продолжил.</div>' + (l.length ? l.map(t => itemHTML(t)).join('') : '<div class="empty">Начал пока нет</div>'); }
-  else if (S.seg === 'hums') body += humsHTML();
+  else if (S.seg === 'hums') body += humsHTML() + beatsHTML();
   else if (S.seg === 'stock') { body += '<div class="muted" style="margin:0 2px 8px">Находки на потом. Всплывают сами, когда подходят к строке.</div>' + (STOCK.length ? STOCK.map(x => '<button class="item" data-act="stockopen" data-v="' + esc(x.t) + '"><div class="h" style="white-space:pre-line">' + esc(x.t.length > 120 ? x.t.slice(0, 118) + '…' : x.t) + '</div><div class="m">' + esc(x.src || '') + '</div></button>').join('') : '<div class="empty">Запас пуст</div>'); }
   else { const g = []; all.forEach(t => t.lines.forEach((l, i) => { if (l.star && l.t) g.push([t, l, i]); }));
     body += '<div class="muted" style="margin:0 2px 8px">Строки, которые ты отметил ★.</div>' + (g.length ? g.map(([t, l, i]) => '<button class="item" data-act="open" data-v="' + t.id + '" data-i="' + i + '"><div class="h">★ ' + esc(l.t) + '</div><div class="m">' + esc(titleOf(t)) + '</div></button>').join('') : '<div class="empty">Пока ничего не отмечено</div>'); }
@@ -154,7 +155,7 @@ function autosize(ta){ ta.style.height = 'auto'; ta.style.height = Math.max(ta.s
 function renderText(){
   const t = T();
   hdr('<button class="a" data-act="back">‹ Назад</button>', '<input id="title" placeholder="' + esc(titleOf(t)) + '" value="' + esc(t.title) + '">', '<span class="a r hr2"><button data-act="rec" aria-label="Напеть">' + MIC + '</button><button data-act="sheet" data-v="menu">⋯</button></span>');
-  let h = humRow(t) + (S.timerEnd && S.timerId === t.id ? '<button class="timer" id="timer" data-act="timerstop">⏱ 10:00</button>' : '');
+  let h = beatBar(t) + humRow(t) + (S.timerEnd && S.timerId === t.id ? '<button class="timer" id="timer" data-act="timerstop">⏱ 10:00</button>' : '');
   t.thoughts.forEach((x, i) => h += '<div class="thought"><div style="flex:1"><b>мысль</b>' + esc(x) + '</div><button class="x" data-act="rmthought" data-v="' + i + '">×</button></div>');
   if (t.box.length) h += '<div class="box"><span class="lbl">ящик:</span>' + t.box.map((x, i) => '<span class="chip"><button class="bx" data-act="boxins" data-v="' + i + '">' + esc(x) + '</button><button data-act="rmbox" data-v="' + i + '">×</button></span>').join('') + '<button class="chip" data-act="boxstock">всё в запас</button></div>';
   h += '<div class="ed"><div id="gut"></div><div id="mir" class="notes" aria-hidden="true"></div><textarea id="ta" class="notes" autocapitalize="sentences" placeholder="Пиши как в заметках. Три Enter — новая мысль.">' + esc(t.lines.map(l => l.t).join('\n')) + '</textarea></div>';
@@ -433,7 +434,7 @@ function sheet(title, sub, body){ return '<div class="veil" data-act="close"></d
 function renderSheet(){
   const k = S.sheet, L = $('#layer'); if (!k) { L.innerHTML = ''; return; }
   const t = T(), d = S.sd;
-  if (humSheet(k, d, L)) return;
+  if (humSheet(k, d, L) || beatSheet(k, d, L)) return;
   if (k === 'nothing') {
     if (!D.ready) { L.innerHTML = sheet('Ничего нет', '', '<div class="empty">загружаю словарь…</div>'); loadDict().then(renderSheet).catch(() => { D.ready = false; }); return; }
     d.q = d.q || QUESTIONS[Math.floor(Math.random() * QUESTIONS.length)];
@@ -616,7 +617,7 @@ function renderSheet(){
   else if (k === 'more') { const l = curLine() || { t:'' }, can = l.t && !goalOf(l);
     L.innerHTML = sheet('Ещё', l.t ? 'строка: «' + esc(l.t.slice(0, 40)) + '»' : '',
       '<div class="grid6"><button class="big" data-act="sheet" data-v="why">Почему?<small>вопрос к строке</small></button><button class="big" data-act="sheet" data-v="zahod">Заход<small>начало строки</small></button><button class="big" data-act="sheet" data-v="rhythm"' + (can ? '' : ' disabled') + '>Ритм<small>отстучать строку</small></button><button class="big" data-act="starmore"' + (l.t ? '' : ' disabled') + '>' + (l.star ? '★ Годное' : '☆ Годное') + '<small>отметить строку</small></button>' +
-      '<button class="big" data-act="sheet" data-v="ask">Спросить у ИИ<small>готовый запрос</small></button><button class="big" data-act="fragcur">Мысль<small>двигать, склеить, в запас</small></button></div>'); }
+      '<button class="big" data-act="sheet" data-v="ask">Спросить у ИИ<small>готовый запрос</small></button><button class="big" data-act="beatopen">Бит и метроном<small>темп, бит под текстом</small></button><button class="big" data-act="fragcur">Мысль<small>двигать, склеить, в запас</small></button></div>'); }
   else if (k === 'menu') L.innerHTML = sheet(esc(titleOf(t)), '',
       '<button class="btn big" data-act="copytext">Скопировать весь текст</button>' + (t.lines.some(l => cleanText(l.t) !== l.t) ? '<button class="btn big" data-act="copyclean">Скопировать чисто, без растяжек и ударений</button>' : '') + '<button class="btn big" data-act="new">＋ Новый текст</button>' +
       (curLine() ? '<button class="btn big" data-act="delline">Удалить строку ' + (S.cur + 1) + '</button>' : '') + '<button class="btn big danger" data-act="deltext">Удалить текст</button>');
@@ -691,12 +692,12 @@ function humsHTML(){ const f = S.humK || '', all = takes(), l = all.filter(m => 
 let recT = null;
 function humSheet(k, d, L){
   if (k === 'rec') { const t = S.view === 'text' ? T() : null; let lines = []; if (t && t.lines.length) { const [a, b] = fragOf(t.lines, Math.min(S.cur, t.lines.length - 1)); lines = t.lines.slice(a, b + 1).filter(l => l.t.trim()).slice(0, 12); }
-    L.innerHTML = sheet('Запись', d.err ? '' : 'пой, стучи, бубни: сохранится само', d.err ? '<div class="empty">' + esc(d.err) + '</div><button class="btn big" data-act="recoff">Закрыть</button>' :
+    L.innerHTML = sheet('Запись', d.err ? '' : d.under ? 'под ' + (d.under === 'beat' ? 'бит' : 'метроном') + ': надень наушники' : 'пой, стучи, бубни: сохранится само', d.err ? '<div class="empty">' + esc(d.err) + '</div><button class="btn big" data-act="recoff">Закрыть</button>' :
       (lines.length ? '<div class="reclines">' + lines.map(l => esc(l.t)).join('<br>') + '</div>' : '') + '<div class="recbox"><div class="rect" id="rect">0:00</div><div class="recw" id="recw"></div><button class="recstop" data-act="recstop" aria-label="Стоп"><i></i></button><div class="muted">' + (d.wait ? 'жду микрофон…' : 'нажми, чтобы закончить') + '</div></div><button class="btn big ghost" data-act="recoff">Не сохранять</button>');
     return true; }
   if (k === 'hum') { const m = takeBy(d.id); if (!m) { S.sheet = null; L.innerHTML = ''; return true; } warm([m.id]); const tx = texts.get(m.textId), here = S.view === 'text' ? T() : null;
     L.innerHTML = sheet(esc(humName(m)), mmss(m.dur) + ' · ' + fmtDate(m.created) + (tx ? ' · ' + esc(titleOf(tx).slice(0, 30)) : ''),
-      '<button class="wavebox" data-v="' + m.id + '">' + waveSVG(m) + '</button><div class="row" style="flex-wrap:nowrap;margin-bottom:12px">' + playBtn(m.id, 'btn main humbig') + '<span class="pt">' + (playing() === m.id ? 'Стоп' : 'Слушать') + '</span></button><button class="btn humbig' + (S.humLoop ? ' lon' : '') + '" data-act="humloop">↻ по кругу</button></div>' +
+      '<button class="wavebox" data-v="' + m.id + '">' + waveSVG(m) + '</button><div class="row" style="flex-wrap:nowrap;margin-bottom:12px">' + playBtn(m.id, 'btn main humbig') + '<span class="pt">' + (playing() === m.id ? 'Стоп' : 'Слушать') + '</span></button><button class="btn humbig' + (S.humLoop ? ' lon' : '') + '" data-act="humloop">↻ по кругу</button></div>' + (beats().some(x => x.id === m.beatId) ? '<button class="btn big" style="margin:-4px 0 12px" data-act="humbeat">▶ Слушать вместе с битом</button>' : '') +
       '<input class="f" id="humname" placeholder="название" value="' + esc(m.name) + '" autocapitalize="sentences"><div class="chips" style="margin:10px 0">' + KINDS.map(x => '<button class="chip rh' + (m.kind === x ? ' in' : '') + '" data-act="humkind" data-v="' + x + '">' + x + '</button>').join('') + '</div>' +
       (m.line ? '<div class="muted" style="margin:0 2px 8px">к строке «' + esc(m.line) + '»</div>' : '') +
       (here && m.textId !== here.id ? '<button class="btn big" data-act="humlink">Прикрепить к этому тексту</button>' : '') + (tx && !here ? '<button class="btn big" data-act="open" data-v="' + tx.id + '">Открыть текст</button>' : !tx ? '<button class="btn big" data-act="humnew">Начать текст под этот напев</button>' : '') +
@@ -708,20 +709,23 @@ function humSheet(k, d, L){
 async function recBegin(){
   if (recOn()) return; const f = document.activeElement; if (f && f.blur) f.blur(); S.sheet = 'rec'; S.sd = { wait:true }; renderSheet();
   if (!recSupported()) { S.sd = { err:'Этот браузер не умеет записывать звук' }; renderSheet(); return; }
-  try { await startRec(); if (S.sheet !== 'rec') { await stopRec({}, false); return; } S.sd = {}; renderSheet(); clearInterval(recT); recT = setInterval(drawRec, 90); }
-  catch (e) { if (S.sheet !== 'rec') return; S.sd = { err:/NotAllowed|Permission|denied/i.test(e.name + e.message) ? 'Нет доступа к микрофону. Разреши его для «Строк» и открой приложение заново.' : 'Микрофон не включился: ' + e.message }; renderSheet(); } }
+  const under = beatState().on; holdBeat(true);
+  try { await startRec(); if (under) { wakeBeat(); setTimeout(wakeBeat, 250); } if (S.sheet !== 'rec') { await stopRec({}, false); return; } S.sd = { under }; renderSheet(); clearInterval(recT); recT = setInterval(drawRec, 90);
+    setTimeout(() => { const p = beatPos(), s = beatState(); if (recOn()) REC_AT = s.on === 'beat' && p !== null ? { beatId:s.id, beatAt:p - recState().ms / 1000, bpm:s.bpm } : s.on === 'metro' ? { bpm:s.bpm } : {}; }, 600); REC_AT = {}; }
+  catch (e) { holdBeat(false); if (S.sheet !== 'rec') return; S.sd = { err:/NotAllowed|Permission|denied/i.test(e.name + e.message) ? 'Нет доступа к микрофону. Разреши его для «Строк» и открой приложение заново.' : 'Микрофон не включился: ' + e.message }; renderSheet(); } }
 function drawRec(){ const s = recState(), a = $('#rect'), w = $('#recw'); if (!s.on) { clearInterval(recT); return; } if (a) a.textContent = mmss(Math.floor(s.ms / 1000) * 1000); if (w) w.innerHTML = s.peaks.slice(-46).map(x => '<i style="height:' + Math.max(3, x * .46) + 'px"></i>').join(''); }
-let recEnd = false;
+let recEnd = false, REC_AT = {};
 async function recFinish(keep = true){
   if (recEnd) return; recEnd = true; clearInterval(recT);
   try { const t = S.view === 'text' ? T() : null, l = t ? baseLine(t) : null, was = recOn(); let m = null;
-    try { m = await stopRec(t ? { textId:t.id, line:l ? l.t.trim().slice(0, 90) : '' } : {}, keep); } catch (e) { toast('Не сохранилось: ' + e.message); }
+    try { m = await stopRec({ ...REC_AT, ...(t ? { textId:t.id, line:l ? l.t.trim().slice(0, 90) : '' } : {}) }, keep); } catch (e) { toast('Не сохранилось: ' + e.message); }
+    holdBeat(false); if (beatState().on) stopBeat();
     S.sheet = m ? 'hum' : null; S.sd = m ? { id:m.id } : {}; render(); if (m) toast('Напев сохранён'); else if (keep && was) toast('Запись слишком короткая'); } finally { recEnd = false; } }
 onRecAuto(() => recFinish());
 document.addEventListener('visibilitychange', () => { if (document.hidden && recOn()) recFinish(); });
 function tickHum(){ document.querySelectorAll('[data-wave]').forEach(w => { const on = playing() === w.dataset.wave, p = on ? playPos() : 0, rs = w.children, n = rs.length; for (let i = 0; i < n; i++) rs[i].classList.toggle('pl', on && i / n <= p); }); }
 let humT = null;
-onHum(() => { const id = playing(); clearInterval(humT); if (id) humT = setInterval(tickHum, 120); tickHum();
+onHum(() => { const id = playing(); if (!id && S.withBeat) { S.withBeat = false; stopBeat(); } clearInterval(humT); if (id) humT = setInterval(tickHum, 120); tickHum();
   document.querySelectorAll('[data-act="humplay"]').forEach(b => { const on = b.dataset.v === id; b.classList.toggle('on', on); const i = b.querySelector('i'), p = b.querySelector('.pt'); if (i) i.textContent = on ? '■' : '▶'; if (p) p.textContent = on ? 'Стоп' : 'Слушать'; }); });
 async function shareFiles(files){ if (navigator.canShare && navigator.canShare({ files })) { try { await navigator.share({ files }); return; } catch (e) { if (e.name === 'AbortError') return; } }
   files.forEach(f => { const a = document.createElement('a'); a.href = URL.createObjectURL(f); a.download = f.name; document.body.appendChild(a); a.click(); a.remove(); }); toast('Сохранено файлов: ' + files.length); }
@@ -732,6 +736,7 @@ function humAct(a, v){
     case 'recstop': if (recOn()) recFinish(); return true;
     case 'recoff': if (recOn()) recFinish(false); else { S.sheet = null; S.sd = {}; render(); } return true;
     case 'humplay': togglePlay(v, S.humLoop).catch(e => toast('Не играет: ' + e.message)); return true;
+    case 'humbeat': if (m) { const b = beats().find(x => x.id === m.beatId); if (b) { S.withBeat = true; const p1 = startBeat(b, Math.max(0, m.beatAt || 0)), p2 = togglePlay(m.id, false); Promise.all([p1, p2]).catch(e => toast('Не играет: ' + e.message)); } } return true;
     case 'humopen': { const f = document.activeElement; if (f && f.blur) f.blur(); S.sheet = 'hum'; S.sd = { id:v }; renderSheet(); return true; }
     case 'humk': S.humK = v; render(); return true;
     case 'humloop': S.humLoop = !S.humLoop; setLoop(S.humLoop); renderSheet(); return true;
@@ -746,13 +751,71 @@ function humAct(a, v){
   return false; }
 document.addEventListener('click', e => { const b = e.target.closest('.wavebox'); if (!b) return; const r = b.getBoundingClientRect(), f = (e.clientX - r.left) / r.width, id = b.dataset.v; if (playing() === id) seek(id, f); else togglePlay(id, S.humLoop).then(() => seek(id, f)).catch(() => {}); });
 
+// ---------- бит и метроном ----------
+const beatOf = t => t && t.beatId ? beats().find(b => b.id === t.beatId) || null : null;
+const fmtBpm = x => x ? String(x).replace('.', ',') : '—';
+const DOTS = '<span class="dots"><i></i><i></i><i></i><i></i></span>';
+function beatBar(t){ const b = beatOf(t); if (b) warm([b.id]); return '<div id="beatbar">' + beatBarIn(t) + '</div>'; }
+function beatBarIn(t){ const b = beatOf(t), s = beatState(); if (!b && !t.bpm && s.on !== 'metro') return ''; const on = b ? s.on === 'beat' && s.id === b.id : s.on === 'metro';
+  return '<div class="bbar"><button class="hb' + (on ? ' on' : '') + '" data-act="beatplay"><i>' + (on ? '■' : '▶') + '</i></button><button class="bbt" data-act="beatopen"><b>' + esc(b ? b.name : 'Метроном') + '</b><small>' + fmtBpm(b ? b.bpm : t.bpm || s.bpm) + ' BPM</small></button>' + DOTS + '<button class="hm" data-act="beatopen">⋯</button></div>'; }
+function drawBeatBar(){ const e = $('#beatbar'), t = T(); if (e && t) e.innerHTML = beatBarIn(t); }
+function beatSheet(k, d, L){
+  if (k !== 'beat') return false; const t = S.view === 'text' ? T() : null, s = beatState(), all = beats(), mine = beatOf(t), b = mine || (s.on === 'beat' ? all.find(x => x.id === s.id) : null);
+  d.tab = d.tab || (b ? 'beat' : 'metro'); const metro = d.tab === 'metro', bpm = metro ? (t && t.bpm && s.on !== 'metro' ? t.bpm : s.on === 'metro' ? s.bpm : S.bpm || (t && t.bpm) || 90) : b ? b.bpm : 0, on = metro ? s.on === 'metro' : !!(b && s.on === 'beat' && s.id === b.id); if (all.length) warm(all.map(x => x.id));
+  const tempo = '<div class="bpmrow"><button class="btn" data-act="bpm" data-v="-1">−</button><div class="bpmv"><b id="bpmv">' + fmtBpm(bpm) + '</b><small>BPM</small></div><button class="btn" data-act="bpm" data-v="1">+</button></div><div class="row" style="justify-content:center;margin-bottom:10px"><button class="btn" data-act="bpm" data-v="x.5">÷2</button>' + DOTS + '<button class="btn" data-act="bpm" data-v="x2">×2</button></div>' +
+    '<button class="tpad" id="tpad">Стучи в такт<small id="tcount">' + (metro ? 'от четырёх ударов' : on ? 'начни с «раз»' : 'включи бит и стучи, начни с «раз»') + '</small></button>';
+  L.innerHTML = sheet('Бит и метроном', t ? 'к тексту «' + esc(titleOf(t).slice(0, 30)) + '»' : '', '<div class="seg"><button data-act="btab" data-v="metro" class="' + (metro ? 'on' : '') + '">Метроном</button><button data-act="btab" data-v="beat" class="' + (metro ? '' : 'on') + '">Бит</button></div>' +
+    (metro ? tempo + '<button class="btn big main" data-act="metro">' + (on ? '■ Стоп' : '▶ Метроном') + '</button><div class="muted" style="margin-top:12px">Громкость щелчка</div><input type="range" id="bvol" min="0.1" max="1" step="0.05" value="' + s.vol + '">' + (t && t.bpm && !mine ? '<button class="btn big" data-act="bpmoff">Убрать темп с этого текста</button>' : '')
+      : (b ? '<div class="bname">' + esc(b.name) + '<small>' + mmss(b.dur) + '</small></div><input type="range" id="bpos" min="0" max="1000" value="0">' + tempo + '<div class="row" style="flex-wrap:nowrap;margin-top:10px"><button class="btn main humbig" data-act="beatgo" data-v="' + b.id + '">' + (on ? '■ Стоп' : '▶ Бит') + '</button><button class="btn humbig' + (s.click ? ' lon' : '') + '" data-act="beatclick">щелчок поверх</button></div>' + (mine ? '<button class="btn big" data-act="beatnone">Убрать бит с этого текста</button>' : '') : '') +
+        '<div class="grp">Мои биты</div>' + (all.length ? all.map(x => '<div class="humitem">' + '<button class="hb' + (s.on === 'beat' && s.id === x.id ? ' on' : '') + '" data-act="beatgo" data-v="' + x.id + '"><i>' + (s.on === 'beat' && s.id === x.id ? '■' : '▶') + '</i></button><button class="humt" data-act="beatpick" data-v="' + x.id + '"><b>' + esc(x.name) + '</b><small>' + mmss(x.dur) + ' · ' + fmtBpm(x.bpm) + ' BPM' + (t && t.beatId === x.id ? ' · в этом тексте' : t ? ' · нажми, чтобы взять' : '') + '</small></button><button class="hm" data-act="beatdel" data-v="' + x.id + '">✕</button></div>').join('') : '<div class="empty">Битов пока нет</div>') +
+        '<button class="btn big' + (all.length ? '' : ' main') + '" data-act="beatadd">Загрузить бит из «Файлов»</button>'));
+  const v = $('#bvol'); if (v) v.addEventListener('input', () => setVol(+v.value)); const p = $('#bpos'); if (p) { p.addEventListener('input', () => { p.dataset.drag2 = '1'; }); p.addEventListener('change', () => { seekBeat(p.value / 1000); delete p.dataset.drag2; }); }
+  const pad = $('#tpad'); if (pad) pad.addEventListener('pointerdown', e => { e.preventDefault(); pad.classList.add('hit'); setTimeout(() => pad.classList.remove('hit'), 90); if (!metro && !on) { $('#tcount').textContent = 'сначала включи бит'; return; } if (metro && beatState().on === 'metro') stopBeat();
+    const r = tap(performance.now()); $('#tcount').textContent = r.bpm ? 'ударов: ' + r.n : 'ещё ' + (4 - r.n); if (!r.bpm) return; applyBpm(r.bpm, r.off, metro, b); });
+  return true; }
+function applyBpm(x, off, metro, b){ const t = S.view === 'text' ? T() : null; x = setBpm(x); const e = $('#bpmv'); if (e) e.textContent = fmtBpm(x);
+  if (metro) { S.bpm = x; if (t) { t.bpm = x; save(t); } } else if (b) { b.bpm = x; if (off !== null && off !== undefined) b.off = off; putTake(b); }
+  drawBeatBar(); }
+function beatsHTML(){ const all = beats(), s = beatState(); if (all.length) warm(all.map(x => x.id)); return '<div class="grp">Биты</div>' + all.map(x => '<div class="humitem"><button class="hb' + (s.on === 'beat' && s.id === x.id ? ' on' : '') + '" data-act="beatgo" data-v="' + x.id + '"><i>' + (s.on === 'beat' && s.id === x.id ? '■' : '▶') + '</i></button><span class="humt"><b>' + esc(x.name) + '</b><small>' + mmss(x.dur) + ' · ' + fmtBpm(x.bpm) + ' BPM</small></span><button class="hm" data-act="beatdel" data-v="' + x.id + '">✕</button></div>').join('') + '<div class="row"><button class="btn" data-act="beatadd">Загрузить бит</button><button class="btn" data-act="beatopen">Метроном и темп</button></div>'; }
+async function addBeat(f){
+  if (f.size > 120e6) { toast('Файл больше 120 МБ, возьми mp3'); return; } const buf = await f.arrayBuffer(), mime = f.type || (/\.wav$/i.test(f.name) ? 'audio/wav' : /\.(m4a|aac|mp4)$/i.test(f.name) ? 'audio/mp4' : 'audio/mpeg');
+  const dur = await new Promise(res => { const a = new Audio(), u = URL.createObjectURL(new Blob([buf], { type:mime })); let end = false; const fin = x => { if (end) return; end = true; URL.revokeObjectURL(u); res(x); }; a.onloadedmetadata = () => fin(a.duration); a.onerror = () => fin(-1); setTimeout(() => fin(0), 6000); a.preload = 'metadata'; a.src = u; a.load(); });
+  if (dur < 0) { toast('Этот файл телефон не играет'); return; }
+  const name = f.name.replace(/\.[^.]+$/, '').replace(/[_]+/g, ' ').trim().slice(0, 60) || 'Бит', g = name.match(/(?:^|\D)(\d{2,3}(?:[.,]\d)?)\s*bpm/i);
+  const meta = { id:uid(), type:'beat', name, bpm:g ? Math.max(40, Math.min(240, +g[1].replace(',', '.'))) : 0, off:0, dur:isFinite(dur) ? Math.round(dur * 1000) : 0, mime, size:buf.byteLength, created:Date.now() };
+  await putTake(meta, buf); await warm([meta.id]); const t = S.view === 'text' ? T() : null; if (t) { t.beatId = meta.id; save(t); drawBeatBar(); } S.sd.tab = 'beat'; if (S.sheet === 'beat') renderSheet(); else render(); toast(g ? 'Бит добавлен, ' + fmtBpm(meta.bpm) + ' BPM из названия' : 'Бит добавлен, отстучи темп'); }
+onBeat(() => { drawBeatBar(); beatTick(); if (S.sheet === 'beat') renderSheet(); else document.querySelectorAll('[data-act="beatgo"]').forEach(x => { const s = beatState(), on = s.on === 'beat' && s.id === x.dataset.v; x.classList.toggle('on', on); const i = x.querySelector('i'); if (i) i.textContent = on ? '■' : '▶'; }); }, m => toast('Не играет: ' + m));
+let beatT = null;
+function beatTick(){ clearInterval(beatT); if (beatState().on) beatT = setInterval(beatDraw, 40); else beatDraw(); }
+function beatDraw(){ const p = beatPhase(); document.querySelectorAll('.dots').forEach(d => { if (d.dataset.p === String(p)) return; d.dataset.p = p; [...d.children].forEach((x, i) => x.classList.toggle('on', i === p)); });
+  const r = $('#bpos'), n = beatDur(), x = beatPos(); if (r && n && x !== null && !r.dataset.drag2) r.value = x / n * 1000; }
+document.addEventListener('visibilitychange', () => { if (document.hidden && beatState().on === 'metro') stopBeat(); });
+function beatAct(a, v){
+  const t = S.view === 'text' ? T() : null, s = beatState(), blur = () => { const f = document.activeElement; if (f && f.blur) f.blur(); }, go = b => startBeat(b).catch(e => toast('Не играет: ' + e.message));
+  switch (a) {
+    case 'back': case 'tab': if (s.on) stopBeat(); return false;
+    case 'beatopen': blur(); tapReset(); S.sheet = 'beat'; S.sd = {}; renderSheet(); return true;
+    case 'btab': if (s.on) stopBeat(); tapReset(); S.sd.tab = v; renderSheet(); return true;
+    case 'beatplay': { const b = beatOf(t); if (s.on) { stopBeat(); return true; } stopPlay(); if (b) go(b); else startMetro(t.bpm || 90); return true; }
+    case 'metro': if (s.on === 'metro') stopBeat(); else { stopPlay(); const x = (t && t.bpm) || S.bpm || 90; if (t && !t.bpm) { t.bpm = x; save(t); } startMetro(x); } return true;
+    case 'beatgo': { const b = beats().find(x => x.id === v); if (!b) return true; if (s.on === 'beat' && s.id === v) stopBeat(); else { stopPlay(); go(b); } return true; }
+    case 'beatpick': { const b = beats().find(x => x.id === v); if (b && t) { t.beatId = v; save(t); drawBeatBar(); } if (b && !(s.on === 'beat' && s.id === v)) go(b); else renderSheet(); return true; }
+    case 'beatnone': if (t) { t.beatId = ''; save(t); if (s.on) stopBeat(); drawBeatBar(); renderSheet(); } return true;
+    case 'bpmoff': if (t) { t.bpm = 0; save(t); if (s.on) stopBeat(); drawBeatBar(); renderSheet(); } return true;
+    case 'bpm': { const metro = S.sd.tab === 'metro', b = metro ? null : beatOf(t) || (s.on === 'beat' ? beats().find(x => x.id === s.id) : null), cur = metro ? (s.on === 'metro' ? s.bpm : (t && t.bpm) || S.bpm || 90) : b ? b.bpm || 90 : 90; applyBpm(v[0] === 'x' ? cur * +v.slice(1) : Math.round(cur) + +v, null, metro, b); return true; }
+    case 'beatclick': setClick(!s.click); if (!s.click && S.sheet === 'beat') { const b = beatOf(t) || beats().find(x => x.id === s.id); if (b && !b.bpm) toast('Сначала отстучи темп'); } renderSheet(); return true;
+    case 'beatadd': { const inp = document.createElement('input'); inp.type = 'file'; inp.accept = 'audio/*,.mp3,.wav,.m4a,.aac'; inp.onchange = () => { if (inp.files[0]) addBeat(inp.files[0]).catch(e => toast('Не получилось: ' + e.message)); }; inp.click(); return true; }
+    case 'beatdel': { const b = beats().find(x => x.id === v); if (!b) return true; if (s.id === v && s.on) stopBeat(); dropTake(v).then(x => { drawBeatBar(); if (S.sheet) renderSheet(); else render(); toastUndo('Бит удалён', () => putTake(x.meta, x.buf).then(() => { drawBeatBar(); if (S.sheet) renderSheet(); else render(); })); }); return true; }
+  }
+  return false; }
+
 // ---------- действия ----------
 function openText(id, line, mode){ S.back = S.tab; S.view = 'text'; S.id = id; S.lastText = id; const t = T(); S.cur = line ?? Math.max(0, t.lines.length - 1); S.edit = null; S.sheet = null; S.mode = mode || 'write'; if (S.mode === 'write') S.focusTA = true; render(); $('#main').scrollTop = 0; }
 function closeSheet(){ if (S.sheet === 'rec' && recOn()) { recFinish(); return; } S.sheet = null; S.sd = {}; if (S.refocus && S.view === 'text' && S.mode === 'write') { S.focusTA = true; } S.refocus = false; render(); }
 function act(a, v, el){
   if (dictAct(a, v)) return;
   if (lookAct(a, v)) return;
-  if (humAct(a, v)) return;
+  if (humAct(a, v) || beatAct(a, v)) return;
   const t = T();
   switch (a) {
     case 'tab': flushAll(); if (v === 'dict' && S.tab === 'dict') { D.blk = null; D.open = null; } S.tab = v; S.view = 'home'; S.sheet = null; render(); break;

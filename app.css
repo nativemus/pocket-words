@@ -385,3 +385,26 @@ textarea.notes{grid-area:1/1;width:100%;overflow-wrap:break-word}
 .recstop i{width:30px;height:30px;border-radius:7px;background:#ff453a;animation:recp 1.4s ease-in-out infinite}
 @keyframes recp{50%{opacity:.55}}
 @media (prefers-reduced-motion:reduce){.recstop i{animation:none}}
+/* бит и метроном */
+.bbar{display:flex;align-items:center;gap:9px;background:var(--panel2);border:1px solid var(--panel3);border-radius:17px;padding:3px 4px 3px 5px;margin-bottom:8px}
+.bbar .hb{width:36px;height:36px}
+.bbt{flex:1;min-width:0;border:none;background:none;text-align:left;padding:0;min-height:38px}
+.bbt b{display:block;font-size:14.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bbt small{display:block;color:var(--muted);font-size:12px;line-height:1.1}
+.dots{display:inline-flex;gap:6px;padding:0 4px}
+.dots i{width:9px;height:9px;border-radius:50%;background:var(--panel3)}
+.dots i.on{background:#fff}
+.dots i:first-child.on{background:var(--accent)}
+.humitem .hm{min-width:40px;min-height:44px;justify-content:center;padding:0}
+.sheet .humitem{background:var(--panel2);border-color:var(--panel3);-webkit-backdrop-filter:none;backdrop-filter:none}
+span.humt{flex:1;min-width:0}
+.bpmrow{display:flex;align-items:center;justify-content:center;gap:18px;margin:4px 0 8px}
+.bpmrow .btn{width:50px;height:50px;border-radius:50%;font-size:24px;padding:0}
+.bpmv{min-width:118px;text-align:center}
+.bpmv b{display:block;font-size:44px;line-height:1;font-weight:800;font-variant-numeric:tabular-nums}
+.bpmv small{color:var(--muted);font-size:12px}
+.tpad{display:block;width:100%;min-height:92px;border:1.5px solid var(--accent);border-radius:18px;background:rgba(245,197,66,.08);font-size:18px;font-weight:700;touch-action:none;-webkit-user-select:none;user-select:none}
+.tpad small{display:block;color:var(--muted);font-size:13px;font-weight:400;margin-top:3px}
+.tpad.hit{background:rgba(245,197,66,.34)}
+.bname{font-weight:700;font-size:17px;margin:2px 2px 0}
+.bname small{color:var(--muted);font-weight:400;font-size:13px;margin-left:7px}

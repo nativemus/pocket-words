@@ -10,9 +10,11 @@ export function loadTakes(){
     r.onsuccess = () => { H.db = r.result; res(); }; r.onerror = () => rej(r.error); })
     .then(() => idb(H.db.transaction('meta').objectStore('meta').getAll())).then(a => { H.takes = a.sort((x, y) => y.created - x.created); });
 }
-export const takes = () => H.takes;
+export const takes = () => H.takes.filter(x => x.type !== 'beat');
+export const beats = () => H.takes.filter(x => x.type === 'beat');
+export const urlOf = id => H.url.get(id) || '';
 export const takeBy = id => H.takes.find(x => x.id === id) || null;
-export const takesOf = textId => H.takes.filter(x => x.textId === textId);
+export const takesOf = textId => takes().filter(x => x.textId === textId);
 const done = tx => new Promise((res, rej) => { tx.oncomplete = () => res(); tx.onerror = tx.onabort = () => rej(tx.error || new Error('хранилище')); });
 export async function putTake(meta, buf){
   await loadTakes(); const tx = H.db.transaction(['meta', 'buf'], 'readwrite'); tx.objectStore('meta').put(meta); if (buf) tx.objectStore('buf').put(buf, meta.id); await done(tx);
