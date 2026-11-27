@@ -5,7 +5,7 @@ import { loadEndings, endingsReady, endings, frameOf, topicBlocks, assocOf, expa
 import { loadPunch, punchReady, punchStress, marked, punOf, turnsOf, candidates, leadWords } from './punch.js';
 import { onHum, loadTakes, takes, takeBy, takesOf, putTake, dropTake, fileOf, startRec, stopRec, recOn, recState, recSupported, onRecAuto, playing, playPos, warm, togglePlay, setLoop, stopPlay, seek, beats } from './hum.js';
 import { onBeat, beatState, beatPhase, beatPos, beatDur, stopBeat, startMetro, startBeat, holdBeat, wakeBeat, seekBeat, setBpm, setVol, setClick, setWood, WOODS, tap, tapReset } from './beat.js';
-const VERSION = '2.0.8';
+const VERSION = '2.0.9';
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c]));
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
@@ -640,6 +640,9 @@ function renderSheet(){
   else if (k === 'menu') L.innerHTML = sheet(esc(titleOf(t)), '',
       '<button class="btn big" data-act="copytext">Скопировать весь текст</button>' + (t.lines.some(l => cleanText(l.t) !== l.t) ? '<button class="btn big" data-act="copyclean">Скопировать чисто, без растяжек и ударений</button>' : '') + '<button class="btn big" data-act="pin" data-v="' + t.id + '">' + (t.pinned ? 'Открепить' : 'Закрепить наверху') + '</button><button class="btn big" data-act="new">＋ Новый текст</button>' +
       (curLine() ? '<button class="btn big" data-act="delline">Удалить строку ' + (S.cur + 1) + '</button>' : '') + '<button class="btn big danger" data-act="deltext">Удалить текст</button>');
+  else if (k === 'gtest') { const o = S.sd.out || [], avg = g => { const x = o.filter(r => r.g === g); return { fps:Math.round(x.reduce((a, r) => a + r.fps, 0) / x.length), jank:Math.round(x.reduce((a, r) => a + r.jank, 0) / x.length), worst:Math.max(...x.map(r => r.worst)) }; }, a = avg(true), b = avg(false);
+    const row = (n, r) => '<div class="set"><div class="h">' + n + '</div><div class="m">' + r.fps + ' кадров в секунду · рывков за прокрутку: ' + r.jank + ' · самый долгий кадр ' + r.worst + ' мс</div></div>';
+    L.innerHTML = sheet('Замер прокрутки', 'по два прогона на каждый вариант; ровно — это 60 кадров и 0 рывков', row('Со стеклом', a) + row('Без стекла', b) + '<div class="muted" style="margin:6px 2px 10px">Сделай скрин и пришли — по нему решим, оставлять ли стекло.</div><button class="btn big" data-act="close">Понятно</button>'); }
   else if (k === 'confirmdel') L.innerHTML = sheet('Удалить текст?', 'это нельзя отменить, если нет сохранённой копии', '<button class="btn big danger" data-act="deltextyes">Да, удалить</button><button class="btn big" data-act="close">Отмена</button>');
 }
 
@@ -1203,7 +1206,7 @@ function startTimer(id){ S.timerEnd = Date.now() + 10 * 60000; S.timerId = id; c
 
 // ---------- 1.0: внешний вид ----------
 // Обои — только в этом телефоне (IndexedDB), в репозиторий и интернет не уходят.
-const LOOK = { dim:.45, text:'B', daily:true, active:null, wps:[] };   // wps: [{id, blob}]
+const LOOK = { dim:.45, text:'B', daily:true, active:null, glass:true, wps:[] };   // wps: [{id, blob}]
 let wpURLs = new Map();
 async function loadLook(){ const l = await kvGet('look'); if (l) Object.assign(LOOK, l); LOOK.wps = (await kvGet('wps')) || []; applyLook(); }
 function saveLook(){ const { wps, ...rest } = LOOK; kvSet('look', rest); }
@@ -1212,7 +1215,7 @@ function currentWp(){ if (!LOOK.wps.length) return null;
   if (LOOK.daily) { const r = rng(dayKey(0) + 'wp'); return LOOK.wps[Math.floor(r() * LOOK.wps.length)]; }
   return LOOK.wps.find(w => w.id === LOOK.active) || LOOK.wps[0]; }
 function applyLook(){
-  document.documentElement.style.setProperty('--dim', LOOK.dim);
+  document.documentElement.style.setProperty('--dim', LOOK.dim); const app = $('#app'); if (app) app.classList.toggle('noglass', LOOK.glass === false);
   const img = document.querySelector('#wp .img'), w = currentWp();
   if (w) { img.classList.remove('def'); img.style.backgroundImage = 'url("' + wpURL(w) + '")'; } else { img.classList.add('def'); img.style.backgroundImage = ''; }
 }
@@ -1237,9 +1240,19 @@ function renderLook(){
   h += '<div class="set"><div class="h">Затемнение фона <span class="muted" id="dimv">' + Math.round(LOOK.dim * 100) + '%</span></div><div class="m">чтобы карточки на стекле читались</div><input type="range" id="dim" min="0.1" max="0.85" step="0.05" value="' + LOOK.dim + '"></div>';
   h += '<div class="set"><div class="h">Экран текста</div><div class="m">сколько фона там, где пишешь</div><div class="seg" style="margin-top:10px">' +
     [['A','А · чёрный'],['B','Б · в шапке'],['C','В · под текстом']].map(([k, n]) => '<button data-act="tmode" data-v="' + k + '" class="' + (LOOK.text === k ? 'on' : '') + '">' + n + '</button>').join('') + '</div></div>';
+  h += '<div class="set"><div class="h">Стекло под карточками<button class="toggle' + (LOOK.glass !== false ? ' on' : '') + '" data-act="glass"></button></div><div class="m">размытие фона за карточками. Красиво, но телефон перерисовывает его при каждой прокрутке</div>' +
+    '<button class="btn" style="margin-top:10px" data-act="gtest">Замерить прокрутку: со стеклом и без</button></div>';
   $('#main').innerHTML = h;
   $('#dim').addEventListener('input', e => { LOOK.dim = +e.target.value; $('#dimv').textContent = Math.round(LOOK.dim * 100) + '%'; applyLook(); saveLook(); });
 }
+// замер: Блокнот сам прокручивается вниз и обратно по 3 секунды — со стеклом и без; считаем кадры
+async function glassTest(){
+  const wait = ms => new Promise(r => setTimeout(r, ms)); S.view = 'home'; S.tab = 'notes'; S.seg = 'texts'; render(); await wait(500);
+  const m = $('#main'), span = m.scrollHeight - m.clientHeight; if (span < 150) { toast('Для замера нужно больше текстов в Блокноте'); return; }
+  const run = () => new Promise(res => { const d = []; let t0 = null, last = 0; const f = now => { if (t0 === null) t0 = now; else d.push(now - last); last = now; const k = (now - t0) / 3000; m.scrollTop = span * (k < .5 ? k * 2 : 2 - k * 2); if (k < 1) requestAnimationFrame(f); else res(d); }; requestAnimationFrame(f); });
+  const was = LOOK.glass !== false, out = [];
+  for (const g of [true, false, true, false]) { LOOK.glass = g; applyLook(); await wait(350); const d = await run(); out.push({ g, fps:Math.round(1000 * d.length / d.reduce((a, b) => a + b, 0)), jank:d.filter(x => x > 25).length, worst:Math.round(Math.max(...d)) }); }
+  LOOK.glass = was; applyLook(); m.scrollTop = 0; S.sheet = 'gtest'; S.sd = { out }; render(); }
 function lookAct(a, v){
   switch (a) {
     case 'look': S.view = 'look'; render(); return true;
@@ -1249,6 +1262,8 @@ function lookAct(a, v){
     case 'wpsel': LOOK.active = v; LOOK.daily = false; saveLook(); applyLook(); render(); return true;
     case 'wpdel': LOOK.wps = LOOK.wps.filter(w => w.id !== v); if (LOOK.active === v) LOOK.active = null; kvSet('wps', LOOK.wps); saveLook(); applyLook(); render(); return true;
     case 'wpdaily': LOOK.daily = !LOOK.daily; saveLook(); applyLook(); render(); return true;
+    case 'glass': LOOK.glass = LOOK.glass === false; saveLook(); applyLook(); render(); toast(LOOK.glass ? 'Стекло включено' : 'Стекло выключено'); return true;
+    case 'gtest': glassTest(); return true;
     case 'tmode': LOOK.text = v; saveLook(); render(); toast('Экран текста: ' + { A:'чёрный', B:'фон в шапке', C:'фон под текстом' }[v]); return true;
   }
   return false;

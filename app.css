@@ -183,6 +183,9 @@ input[type=range]{width:100%;margin-top:12px;accent-color:var(--accent)}
 .swrow.open .swact,.swrow.dragging .swact{opacity:1}
 .swrow .swact button{width:86px;border:none;color:#fff;font-weight:600;font-size:14px}
 .swact .pn{background:#a8801f}
+#app.noglass .door,#app.noglass .item,#app.noglass .feed,#app.noglass .soon,#app.noglass .set,#app.noglass .last,#app.noglass .humitem{-webkit-backdrop-filter:none;backdrop-filter:none;background:rgba(36,36,40,.78)}
+#app.noglass nav.tabs{-webkit-backdrop-filter:none;backdrop-filter:none;background:rgba(0,0,0,.82)}
+#app.noglass .sheet .item,#app.noglass .sheet .humitem{background:var(--panel2)}
 .swact .ar{background:#636366}
 .item .h .pin{font-size:13px;margin-right:5px}
 .swact .un{background:#2f7a43}
