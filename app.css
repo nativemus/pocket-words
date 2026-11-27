@@ -344,9 +344,9 @@ textarea.notes{grid-area:1/1;width:100%;overflow-wrap:break-word}
 .homeacts .btn{min-height:44px;padding:0 16px;border-radius:22px;font-size:15px}
 .last{position:relative;border-radius:18px;background:var(--glass);border:1px solid var(--glassb);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);padding:13px 14px}
 .lastb{display:block;width:100%;text-align:left;border:none;background:none;color:var(--ink);padding:0}
-.lastpin{position:absolute;top:6px;right:6px;width:40px;height:40px;border:none;background:none;font-size:18px;line-height:40px;padding:0;opacity:.3;filter:grayscale(1)}
-.lastpin.on{opacity:1;filter:none}
-.lastb .k{padding-right:34px}
+.lastpin{position:absolute;top:50%;right:6px;transform:translateY(-50%);width:40px;height:40px;border:none;background:none;font-size:20px;line-height:40px;padding:0;opacity:.45}
+.lastpin.on{opacity:1}
+.lastb .k,.lastb .v,.last .k2,.last .chips{padding-right:38px}
 .lastb .k,.last .k2{display:block;font-size:12.5px;color:rgba(255,255,255,.6)}
 .lastb .v{display:block;font-size:19px;font-weight:700;line-height:1.3;margin-top:3px}
 .last .k2{margin:11px 0 6px;color:var(--accent)}
