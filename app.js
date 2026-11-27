@@ -5,7 +5,7 @@ import { loadEndings, endingsReady, endings, frameOf, topicBlocks, assocOf, expa
 import { loadPunch, punchReady, punchStress, marked, punOf, turnsOf, candidates, leadWords } from './punch.js';
 import { onHum, loadTakes, takes, takeBy, takesOf, putTake, dropTake, fileOf, startRec, stopRec, recOn, recState, recSupported, onRecAuto, playing, playPos, warm, togglePlay, setLoop, stopPlay, seek, beats } from './hum.js';
 import { onBeat, beatState, beatPhase, beatPos, beatDur, stopBeat, startMetro, startBeat, holdBeat, wakeBeat, seekBeat, setBpm, setVol, setClick, setWood, WOODS, tap, tapReset } from './beat.js';
-const VERSION = '2.0.6';
+const VERSION = '2.0.7';
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c]));
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
@@ -283,10 +283,10 @@ function stripData(t){
   const empty = !cur.trim(), open = !empty && endingsReady() && frameOf(cur).kind !== 'open', target = prev || (empty || open ? null : L[i]);
   const about = L.slice(a, b + 1).map(x => x.t).join(' ') || t.thoughts.join(' ');
   const out = [], seen = new Set(toks(about));
-  const cards = D.ready && about.trim() ? material(expand(about), 14).filter(x => !seen.has(headOf(D.cards[x.i].word).toLowerCase())) : [];
+  const cards = D.ready && about.trim() ? material(expand(about), 14).filter(x => { const h = headOf(D.cards[x.i].word).toLowerCase(); return (x.direct || x.s >= 10) && !x.near && !seen.has(h) && !about.toLowerCase().includes(h); }) : [];
   const used = new Set([...seen].map(stem)); const push = (w, kind, ci) => { const k = w.toLowerCase(), one = toks(w); if (!w || seen.has(k) || (kind !== 'z' && one.length === 1 && used.has(stem(k)))) return; seen.add(k); out.push({ w, kind, ci }); };
   const dict = x => push(insertForm(D.cards[x.i]), 'd', x.i);
-  if (!empty && endingsReady() && sensesReady()) { const f = frameOf(cur); if (f.kind !== 'open') endings(cur, 1 + cur.length).expr.slice(0, 2).forEach(x => push(x.t, 'd', null)); }
+  if (!empty && endingsReady() && sensesReady()) { const f = frameOf(cur); if (f.kind !== 'open') endings(cur, 1 + cur.length).expr.filter(x => !x.far).slice(0, 2).forEach(x => push(x.t, 'd', null)); }
   if (!activeTag(t) && about.trim()) stockFor(empty && prev ? prev.t : cur || about, 2).forEach(x => { if (x.t.length < 60 && !x.t.includes('\n')) push(x.t, 's', null); });
   if (!activeTag(t)) cards.slice(0, 2).forEach(dict);
   let word = ''; const tg = R.ready ? activeTag(t) : null;
@@ -304,7 +304,7 @@ const insertForm = c => { const h = headOf(c.word); return /^[А-ЯЁ][а-яё-]
 function drawStrip(){ const el = $('#strip'), t = T(); if (!el || !t) return; const d = stripData(t); STRIP.items = d.items;
   const here = tagsHere(t), on = activeTag(t), tb = $('#tagbar'), bar = here.length || on;
   if (tb) { tb.innerHTML = bar ? here.map(x => '<button class="tag t' + x.n + (x.on ? ' on' : '') + '" data-act="tagon" data-v="' + esc(x.on ? on.w : x.w) + '"><b>' + x.k + '</b>' + esc(x.on ? on.w : x.w) + (x.on ? ' <b>×</b>' : '') + '</button>').join('') + '<button class="tag plus" data-act="tags">другое слово ✎</button>' : ''; tb.style.display = bar ? '' : 'none'; }
-  el.innerHTML = (bar ? '' : d.word ? '<button class="tag auto on" data-act="tags">к «' + esc(d.word) + '» ✎</button>' : t.lines.some(l => l.t.trim()) ? '<button class="tag auto" data-act="tags">рифма к… ✎</button>' : '') + d.items.map((x, k) => '<button class="sug' + (x.kind === 'd' || x.kind === 'rd' ? ' d' : x.kind === 's' ? ' s' : '') + (x.ci !== null && x.ci !== undefined ? ' has' : '') + '" data-act="sug" data-v="' + k + '" data-hold="' + (x.ci !== null && x.ci !== undefined ? D.cards[x.ci].id : '') + '" data-w="' + esc(x.w) + '">' + esc(x.w) + '</button>').join('');
+  el.innerHTML = (bar ? '' : d.word ? '<button class="tag auto on" data-act="tags">к «' + esc(d.word) + '» ✎</button>' : t.lines.some(l => l.t.trim()) ? '<button class="tag auto" data-act="tags">рифма к… ✎</button>' : '') + d.items.map((x, k) => '<button class="sug' + (x.kind === 'd' || x.kind === 'rd' ? ' d' : x.kind === 's' ? ' s' : '') + (x.ci !== null && x.ci !== undefined ? ' has' : '') + '" data-act="sug" data-k="' + x.kind + '" data-v="' + k + '" data-hold="' + (x.ci !== null && x.ci !== undefined ? D.cards[x.ci].id : '') + '" data-w="' + esc(x.w) + '">' + esc(x.w) + '</button>').join('');
   el.style.display = d.items.length ? '' : 'none'; }
 // вставка слова туда, где курсор; рифма на пустой строке встаёт концом, курсор — перед ней
 function insertWord(w, asEnd){
@@ -431,6 +431,17 @@ document.addEventListener('contextmenu', e => { if (e.target.closest('[data-hold
 
 // ---------- шторки ----------
 function sheet(title, sub, body){ return '<div class="veil" data-act="close"></div><div class="sheet"><div class="sh"><div class="grab"></div><button class="x" data-act="close">✕</button><div class="st">' + title + '</div>' + (sub ? '<div class="ss">' + sub + '</div>' : '') + '</div><div class="sb">' + body + '</div></div>'; }
+// шторка закрывается свайпом вниз: за шапку — всегда, за содержимое — когда оно прокручено к началу
+(() => { let sh = null, y0 = 0, x0 = 0, dy = 0, t0 = 0, go = false;
+  document.addEventListener('touchstart', e => { const s = e.target.closest && e.target.closest('.sheet'); sh = null; if (!s || e.touches.length > 1 || e.target.closest('#card, input, textarea, select, [type=range]')) return;
+    const sb = s.querySelector('.sb'); if (!e.target.closest('.sh') && sb && sb.scrollTop > 0) return; sh = s; y0 = e.touches[0].clientY; x0 = e.touches[0].clientX; dy = 0; t0 = Date.now(); go = false; }, { passive:true });
+  document.addEventListener('touchmove', e => { if (!sh) return; const y = e.touches[0].clientY - y0, x = e.touches[0].clientX - x0;
+    if (!go) { if (Math.abs(x) > Math.abs(y) || y < 0) { if (Math.abs(x) > 8 || y < -8) sh = null; return; } if (y < 8) return; go = true; sh.style.transition = 'none'; }
+    dy = Math.max(0, y); sh.style.transform = 'translateY(' + dy + 'px)'; e.preventDefault(); }, { passive:false });
+  document.addEventListener('touchend', () => { if (!sh) return; const s = sh; sh = null; if (!go) return; const fast = dy > 40 && dy / Math.max(1, Date.now() - t0) > .5;
+    s.style.transition = 'transform .2s ease';
+    if (dy > Math.min(140, s.offsetHeight * .3) || fast) { s.style.transform = 'translateY(100%)'; const v = s.previousElementSibling; if (v && v.classList.contains('veil')) { v.style.transition = 'opacity .2s'; v.style.opacity = '0'; } setTimeout(closeSheet, 190); }
+    else s.style.transform = ''; }); })();
 function renderSheet(){
   const k = S.sheet, L = $('#layer'); if (!k) { L.innerHTML = ''; return; }
   const t = T(), d = S.sd;
@@ -1338,7 +1349,11 @@ const LET = { A:'эй', B:'би', C:'си', D:'ди', E:'и', F:'эф', G:'дж�
 function hintOf(raw){ if (/^[A-Z]{2,4}$/.test(raw)) { const ls = [...raw].map(c => LET[c]), pre = ls.slice(0, -1).join(''), last = ls[ls.length - 1]; ABBR.set(raw.toLowerCase(), { s:pre + last, si:pre.length + [...last].findIndex(c => VS.includes(c)) }); return; }
   if (!/[а-яё]/.test(raw) || !/.[АЕЁИОУЫЭЮЯ]/.test(raw)) return; const p = plain(raw), k = [...p].findIndex((c, i) => i > 0 && 'АЕЁИОУЫЭЮЯ'.includes(c)); if (k > 0) HINTS.set(p.toLowerCase(), k); }
 function lastWordOf(s){ (String(s).match(/[А-Яа-яЁё][А-Яа-яЁё-]*|[A-Za-z]+/g) || []).slice(-1).forEach(hintOf); const m = String(s).toLowerCase().replace(/[’`]/g, "'").match(/[а-яё][а-яё-]*|[a-zà-öø-ÿ][a-zà-öø-ÿ'-]*/g); if (!m) return '';
-  const w = plain(m[m.length - 1].replace(/['-]+$/g, '')); return /^[а-яё]/.test(w) ? w : w.normalize('NFD').replace(/[\u0300-\u036f]/g, ''); }
+  const w = plain(m[m.length - 1].replace(/['-]+$/g, ''));
+  // «ввысь мы», «знаешь ли»: короткое безударное слово само не рифмуется — звучит вместе с предыдущим
+  if (CLITIC.has(w) && m.length > 1) { const p = plain(m[m.length - 2].replace(/['-]+$/g, '')); if (/^[а-яё]/.test(p) && p.length > 1 && !CLITIC.has(p) && !STOPW.has(p)) { const j = p + '-' + w; if (!HINTS.has(j)) HINTS.set(j, guessStress(p)); return j; } }
+  return /^[а-яё]/.test(w) ? w : w.normalize('NFD').replace(/[\u0300-\u036f]/g, ''); }
+const CLITIC = new Set('мы вы ты я он же ли бы ль мне нам вам вас нас им их ей ему её ее его меня тебя себя тебе себе то ка'.split(' '));
 
 let tt; function toast(s){ const el = $('#toast'); el.textContent = s; el.classList.add('on'); clearTimeout(tt); tt = setTimeout(() => el.classList.remove('on'), 1800); }
 

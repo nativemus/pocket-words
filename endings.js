@@ -69,11 +69,11 @@ function expressions(f, seed){
   hits.sort((a, b) => b[0] - a[0]).forEach(h => add(h[1], h[2], h[3]));
   if (f.kind === 'prep') phrasesAll().forEach(([p, g]) => { const ws = p.split(' '); if (ny(ws[0]) === ny(f.last) && ws.length > 1 && ws.length < 5) (out.pool = out.pool || []).push([tail2(ws, 1), p, g]); });
   if (f.kind === 'sim') phrasesAll().forEach(([p, g]) => { const ws = p.split(' '); if (/^(как|словно|будто)$/.test(ws[0]) && ws.length > 1) (out.pool = out.pool || []).push([tail2(ws, 1), p, g]); });
-  if (out.pool) { const as = new Set([f.head, ...assocOf(f.head)].map(stem)); out.pool.map(x => [toks(x[0] + ' ' + x[2]).some(w => as.has(stem(w))) ? 2 + r() : r(), x]).sort((a, b) => b[0] - a[0]).slice(0, 24).forEach(([, x]) => add(...x)); }
+  if (out.pool) { const as = new Set([f.head, ...assocOf(f.head)].map(stem)); out.pool.map(x => [toks(x[0] + ' ' + x[2]).some(w => as.has(stem(w))) ? 2 + r() : r(), x]).sort((a, b) => b[0] - a[0]).slice(0, 24).forEach(([s, x]) => { const n = out.length; add(...x); if (out.length > n) out[n].far = s < 2; }); }
   if (f.kind === 'def' || out.length < 6) { // инфинитивные выражения: сначала родственные теме, потом вразброс
     const topic = new Set(f.content.flatMap(w => [...lemmas(w), ...assocOf(w).slice(0, 10)]).map(stem));
-    infPhrases().map(x => [x.st.reduce((a, s) => a + (topic.has(s) ? 1 : 0), 0) + r() * 1.3 + COLOR(x.g) - (/^(не )?(быть|иметь|являться|находиться|делать|стать)( |$)/.test(x.p) ? 1.5 : 0), x]).sort((a, b) => b[0] - a[0]).slice(0, 26).forEach(([, x]) => add(x.p, x.p, x.g)); }
-  return out.slice(0, 24).map(x => ({ t:x.t, full:x.full, g:x.g }));
+    infPhrases().map(x => [x.st.reduce((a, s) => a + (topic.has(s) ? 1 : 0), 0) + r() * 1.3 + COLOR(x.g) - (/^(не )?(быть|иметь|являться|находиться|делать|стать)( |$)/.test(x.p) ? 1.5 : 0), x]).sort((a, b) => b[0] - a[0]).slice(0, 26).forEach(([s, x]) => { const n = out.length; add(x.p, x.p, x.g); if (out.length > n) out[n].far = s < 1.3; }); }
+  return out.slice(0, 24).map(x => ({ t:x.t, full:x.full, g:x.g, far:!!x.far }));
 }
 function flips(f, seed){
   const r = rnd(seed + 31), out = [];

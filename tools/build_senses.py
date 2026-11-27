@@ -88,6 +88,10 @@ for w, ps in derived.items():
         for p in ps: heads.setdefault(p, set()).add(w)
 f2l = {noyo(need[f]): [w for _, w in sorted(ls)][0] for f, ls in forms.items()}
 STOP = set('в во на с со из за по к ко у о об от до под над при без для и не ни как а но же бы что то'.split())
+# грубое и матерное в выражения не берём
+RUDE_TAG = re.compile(r'(^|[^а-яё])(груб|обсц|вульг|бран|презр|сексол|неприл)(?![а-яё])')
+RUDE_WORD = re.compile(r'(^|[^а-яё])(жоп|говн|ху[йяеёи]|пизд|бля|муд[аои]|[её]ба|[её]б[ауио]|ебл|[её]бн|въеб|выеб|заеб|наеб|отъеб|поеб|разъеб|съеб|уеб|сра[тнл]|сса[тнл]|дерьм|залуп|перд|сука|сучар|шлюх|манд[аеуы](?![а-яё])|елд[аеуы])')
+rude = lambda p, g: bool(RUDE_TAG.search(g) or RUDE_WORD.search(p))
 rows = []
 for p in sorted(set(heads) | set(phr)):
     hs = set(heads.get(p, set()))
@@ -98,6 +102,7 @@ for p in sorted(set(heads) | set(phr)):
             if l and l in senses: hs.add(l)
     if not hs: continue
     if p not in phr: continue   # без толкования не берём
+    if rude(p, phr[p]): continue
     rows.append(p + '\t' + phr[p] + '\t' + ','.join(sorted(hs)[:4]))
 open(os.path.join(out, 'phrases.txt'), 'w', encoding='utf-8', newline='').write('\n'.join(rows))
 for n in ('senses.txt', 'forms.txt', 'phrases.txt'):
