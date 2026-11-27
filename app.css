@@ -2,13 +2,13 @@
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 :root{--ink:#f2f2f2;--muted:#8e8e93;--accent:#f5c542;--panel:#1c1c1e;--panel2:#2c2c2e;--panel3:#3a3a3c;--line:rgba(255,255,255,.1);
   --glass:rgba(255,255,255,.09);--glassb:rgba(255,255,255,.13);--danger:#ff6b6b;--dim:.45}
-html,body{height:100%;background:#000}
+html,body{height:100%;background:#000;overflow:hidden;overscroll-behavior:none}
 body{margin:0;color:var(--ink);font:16px/1.4 -apple-system,system-ui,"Segoe UI",Roboto,sans-serif;overscroll-behavior:none;-webkit-font-smoothing:antialiased}
 #app{display:flex;flex-direction:column;height:100dvh;max-width:640px;margin:0 auto;position:relative;overflow:hidden;background:#000}
 #app > *:not(#wp):not(#layer):not(.toast){position:relative;z-index:1}
 
 /* фон */
-#wp{position:absolute;inset:0;z-index:0;pointer-events:none}
+#wp{position:absolute;inset:0;z-index:0;pointer-events:none;transform:translateZ(0)}
 #wp .img{position:absolute;inset:-8px;background-size:cover;background-position:center;filter:blur(2px)}
 #wp .img.def{background:
   radial-gradient(160px 110px at 74% 14%, rgba(255,170,90,.6), transparent 70%),
@@ -182,7 +182,9 @@ input[type=range]{width:100%;margin-top:12px;accent-color:var(--accent)}
 .swrow .swact{position:absolute;right:0;top:0;bottom:0;display:flex;opacity:0;transition:opacity .15s}
 .swrow.open .swact,.swrow.dragging .swact{opacity:1}
 .swrow .swact button{width:86px;border:none;color:#fff;font-weight:600;font-size:14px}
+.swact .pn{background:#a8801f}
 .swact .ar{background:#636366}
+.item .h .pin{font-size:13px;margin-right:5px}
 .swact .un{background:#2f7a43}
 .swact .dl{background:#d64545}
 .toast.undo{pointer-events:auto;display:flex;align-items:center;gap:10px}

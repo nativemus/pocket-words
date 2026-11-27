@@ -5,7 +5,7 @@ import { loadEndings, endingsReady, endings, frameOf, topicBlocks, assocOf, expa
 import { loadPunch, punchReady, punchStress, marked, punOf, turnsOf, candidates, leadWords } from './punch.js';
 import { onHum, loadTakes, takes, takeBy, takesOf, putTake, dropTake, fileOf, startRec, stopRec, recOn, recState, recSupported, onRecAuto, playing, playPos, warm, togglePlay, setLoop, stopPlay, seek, beats } from './hum.js';
 import { onBeat, beatState, beatPhase, beatPos, beatDur, stopBeat, startMetro, startBeat, holdBeat, wakeBeat, seekBeat, setBpm, setVol, setClick, setWood, WOODS, tap, tapReset } from './beat.js';
-const VERSION = '2.0.7';
+const VERSION = '2.0.8';
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c]));
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
@@ -65,11 +65,12 @@ function hdr(left, title, right){ $('#hdr').innerHTML = (left || '<span class="a
 
 function renderHome(){
   hdr('', 'Заметки', '');
-  const recent = [...texts.values()].filter(t => !t.archived).sort((a, b) => b.updated - a.updated), last = recent.find(t => t.lines.some(l => l.t.trim())), rest = recent.filter(t => t !== last).slice(0, 4);
+  const recent = [...texts.values()].filter(t => !t.archived).sort((a, b) => b.updated - a.updated), last = recent.find(t => t.lines.some(l => l.t.trim())), pins = recent.filter(t => t.pinned && t !== last), rest = recent.filter(t => t !== last && !t.pinned).slice(0, 4);
   let h = '<textarea id="home" class="askin" rows="1" enterkeyhint="done" placeholder="Слово, чувство или строка…">' + esc(S.homeV || '') + '</textarea><div class="homeacts" id="homeacts"></div>';
   if (last) { const ls = last.lines.filter(l => l.t.trim() && !goalOf(l)), line = (ls[ls.length - 1] || last.lines.find(l => l.t.trim())).t, st = D.ready ? stockFor(line, 4) : [];
     h += '<div class="grp">Остановился здесь</div><div class="last"><button class="lastb" data-act="open" data-v="' + last.id + '"><span class="k">' + esc(titleOf(last).slice(0, 40)) + ' · ' + fmtDate(last.updated) + '</span><span class="v">' + esc(line) + '</span></button>' +
       (st.length ? '<div class="k2">в запасе к этой строке</div><div class="chips">' + st.map(x => '<button class="chip rh" data-act="stockopen" data-v="' + esc(x.t) + '">' + esc(x.t.length > 34 ? x.t.slice(0, 33) + '…' : x.t) + '</button>').join('') + '</div>' : '') + '</div>'; }
+  if (pins.length) h += '<div class="grp">Закреплённые</div>' + pins.map(t => itemHTML(t)).join('');
   if (rest.length) h += '<div class="grp">Ещё тексты</div>' + rest.map(t => itemHTML(t)).join('');
   h += '<div class="grp">Запас' + (STOCK.length ? ' · ' + STOCK.length : '') + '</div>' + (STOCK.length ? '<div class="chips">' + STOCK.slice(0, 14).map(x => '<button class="chip rh" data-act="stockopen" data-v="' + esc(x.t) + '">' + esc(x.t.length > 30 ? x.t.split('\n')[0].slice(0, 29) + '…' : x.t) + '</button>').join('') + '</div>' + (STOCK.length > 14 ? '<button class="btn" style="margin-top:8px" data-act="allstock">весь запас</button>' : '') : '<div class="muted" style="margin:0 2px">Сюда складывай находки: слово из словаря, крючок, недописанный кусок. Когда подойдёт к строке — всплывёт само.</div>');
   $('#main').innerHTML = h; $('#tools').innerHTML = ''; bindRowSwipes();
@@ -79,20 +80,20 @@ function renderHome(){
       : '<button class="btn main" data-act="homeline">Начать строкой</button><button class="btn" data-act="homeword">Подобрать слова</button><button class="btn" data-act="homestock">В запас</button>'; };
   inp.addEventListener('input', acts); inp.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); const b = document.querySelector('#homeacts .main'); if (b && inp.value.trim()) act(b.dataset.act, b.dataset.v, b); } }); acts();
 }
-// свайп влево по тексту: «В архив» / «Удалить» (в архиве — «Вернуть» / «Удалить»)
+// свайп влево по тексту: «Закрепить» / «В архив» / «Удалить» (в архиве — «Вернуть» / «Удалить»)
 function itemHTML(t){ const n = t.lines.filter(l => l.t).length;
-  return '<div class="swrow"><div class="swact">' + (t.archived ? '<button class="un" data-act="unarch" data-v="' + t.id + '">Вернуть</button>' : '<button class="ar" data-act="arch" data-v="' + t.id + '">В архив</button>') +
+  return '<div class="swrow"><div class="swact">' + (t.archived ? '<button class="un" data-act="unarch" data-v="' + t.id + '">Вернуть</button>' : '<button class="pn" data-act="pin" data-v="' + t.id + '">' + (t.pinned ? 'Открепить' : 'Закрепить') + '</button><button class="ar" data-act="arch" data-v="' + t.id + '">В архив</button>') +
     '<button class="dl" data-act="sdel" data-v="' + t.id + '">Удалить</button></div>' +
-    '<button class="item swi" data-act="open" data-v="' + t.id + '"><div class="h">' + esc(titleOf(t)) + '</div><div class="m">' + n + ' ' + (n === 1 ? 'строка' : n >= 2 && n <= 4 ? 'строки' : 'строк') + ' · ' + fmtDate(t.updated) + '</div></button></div>'; }
-const SW_W = 172;
+    '<button class="item swi" data-act="open" data-v="' + t.id + '"><div class="h">' + (t.pinned && !t.archived ? '<span class="pin">📌</span>' : '') + esc(titleOf(t)) + '</div><div class="m">' + n + ' ' + (n === 1 ? 'строка' : n >= 2 && n <= 4 ? 'строки' : 'строк') + ' · ' + fmtDate(t.updated) + '</div></button></div>'; }
+const SW_B = 86, swW = row => SW_B * row.querySelectorAll('.swact button').length;
 function closeRows(except){ document.querySelectorAll('.swrow.open').forEach(r => { if (r !== except) { r.classList.remove('open'); r.querySelector('.swi').style.transform = ''; } }); }
 function bindRowSwipes(){
   document.querySelectorAll('.swrow .swi').forEach(it => { const row = it.parentElement; let x0, y0, dx = 0, mode = null, base = 0;
-    it.addEventListener('pointerdown', e => { x0 = e.clientX; y0 = e.clientY; dx = 0; mode = null; base = row.classList.contains('open') ? -SW_W : 0; });
+    it.addEventListener('pointerdown', e => { x0 = e.clientX; y0 = e.clientY; dx = 0; mode = null; base = row.classList.contains('open') ? -swW(row) : 0; });
     it.addEventListener('pointermove', e => { if (x0 === undefined) return; const mx = e.clientX - x0, my = e.clientY - y0;
       if (!mode) { if (Math.abs(mx) > 8 && Math.abs(mx) > Math.abs(my)) { mode = 'h'; row.classList.add('dragging'); closeRows(row); try { it.setPointerCapture(e.pointerId); } catch (er) {} } else if (Math.abs(my) > 8) mode = 'v'; }
-      if (mode === 'h') { dx = Math.max(-SW_W - 30, Math.min(0, base + mx)); it.style.transition = 'none'; it.style.transform = 'translateX(' + dx + 'px)'; } });
-    const up = () => { if (mode === 'h') { it.style.transition = ''; const open = dx < -SW_W / 2; row.classList.toggle('open', open); it.style.transform = open ? 'translateX(' + -SW_W + 'px)' : '';
+      if (mode === 'h') { dx = Math.max(-swW(row) - 30, Math.min(0, base + mx)); it.style.transition = 'none'; it.style.transform = 'translateX(' + dx + 'px)'; } });
+    const up = () => { if (mode === 'h') { it.style.transition = ''; const w = swW(row), open = dx < -w / 2; row.classList.toggle('open', open); it.style.transform = open ? 'translateX(' + -w + 'px)' : '';
         it.dataset.drag = '1'; setTimeout(() => delete it.dataset.drag, 60); }
       row.classList.remove('dragging'); x0 = undefined; mode = null; };
     it.addEventListener('pointerup', up); it.addEventListener('pointercancel', up); });
@@ -108,7 +109,7 @@ function renderNotes(){
   const every = [...texts.values()].sort((a, b) => b.updated - a.updated), all = every.filter(t => !t.archived);
   const single = t => t.lines.filter(l => l.t).length === 1 && !t.thoughts.length;
   let body = '<div class="seg">' + [['texts','Тексты'],['starts','Начала'],['good','Годное'],['hums','Напевы'],['stock','Запас'],['arch','Архив']].map(([k, n]) => '<button data-act="seg" data-v="' + k + '" class="' + (S.seg === k ? 'on' : '') + '">' + n + '</button>').join('') + '</div>';
-  if (S.seg === 'texts') { const l = all.filter(t => !single(t)); body += '<div class="muted" style="margin:0 2px 8px">Свайп влево по тексту — в архив или удалить.</div>' + (l.length ? l.map(t => itemHTML(t)).join('') : '<div class="empty">Текстов пока нет</div>'); }
+  if (S.seg === 'texts') { const l = all.filter(t => !single(t) || t.pinned), p = l.filter(t => t.pinned), o = l.filter(t => !t.pinned); body += '<div class="muted" style="margin:0 2px 8px">Свайп влево по тексту — закрепить, в архив или удалить.</div>' + (l.length ? (p.length ? '<div class="grp">Закреплённые</div>' + p.map(t => itemHTML(t)).join('') + (o.length ? '<div class="grp">Остальные</div>' : '') : '') + o.map(t => itemHTML(t)).join('') : '<div class="empty">Текстов пока нет</div>'); }
   else if (S.seg === 'arch') { const l = every.filter(t => t.archived); body += '<div class="muted" style="margin:0 2px 8px">Убранные тексты. Свайп влево — вернуть или удалить насовсем.</div>' + (l.length ? l.map(t => itemHTML(t)).join('') : '<div class="empty">Архив пуст</div>'); }
   else if (S.seg === 'starts') { const l = all.filter(single); body += '<div class="muted" style="margin:0 2px 8px">Одиночные строки: то, что записал и ещё не продолжил.</div>' + (l.length ? l.map(t => itemHTML(t)).join('') : '<div class="empty">Начал пока нет</div>'); }
   else if (S.seg === 'hums') body += humsHTML() + beatsHTML();
@@ -163,7 +164,7 @@ function renderText(){
   renderTools();
   const ta = $('#ta');
   if (ta) { drawMirror(); autosize(ta);
-    const upd = () => { const i = caretLine(ta); if (i !== S.cur) { S.cur = i; renderTools(); gutCur(); } };
+    const upd = () => { if (ta.selectionStart !== ta.selectionEnd) return; const i = caretLine(ta); if (i !== S.cur) { S.cur = i; renderTools(); gutCur(); } };
     ta.addEventListener('input', () => { syncFromText(t, ta.value); save(t); drawMirror(); autosize(ta); S.cur = caretLine(ta); renderTools(); gutCur(); keepCaret(); });
     ['keyup', 'click', 'select', 'focus'].forEach(ev => ta.addEventListener(ev, upd));
     if (S.focusTA) { S.focusTA = false; ta.focus(); const pos = S.caret ?? ta.value.length; ta.setSelectionRange(pos, pos); S.caret = null; S.cur = caretLine(ta); renderTools(); gutCur(); keepCaret(); } }
@@ -277,7 +278,10 @@ function autoTags(lines){
   return groups.map(e => ({ e, at:ends.indexOf(e) })).sort((a, b) => a.at - b.at).map((g, n) => ({ k:TAGK[n], n, w:g.e.w, tl:g.e.tl, sk:g.e.sk, auto:true })); }
 let TOOLS_SIG = ''; let stripT; const STRIP = { key:'', items:[] };
 function scheduleStrip(){ clearTimeout(stripT); stripT = setTimeout(drawStrip, 220); }
-function stripData(t){
+const SD = new Map();
+function stripData(t){ const key = [t.id, t.lines.map(l => l.t).join('\n'), S.cur, t.tagOn, t.tagFrag, R.ready, D.ready, endingsReady(), sensesReady(), STOCK.length, D.fav.size].join('\u0001');
+  if (SD.has(key)) return SD.get(key); const d = stripData0(t); SD.set(key, d); if (SD.size > 40) SD.delete(SD.keys().next().value); return d; }
+function stripData0(t){
   const L = t.lines, i = Math.min(S.cur, L.length - 1), cur = i >= 0 ? L[i].t : '', [a, b] = i >= 0 ? fragOf(L, i) : [0, -1];
   let prev = null; for (let j = i - 1; j >= a; j--) if (L[j].t.trim() && !goalOf(L[j])) { prev = L[j]; break; }
   const empty = !cur.trim(), open = !empty && endingsReady() && frameOf(cur).kind !== 'open', target = prev || (empty || open ? null : L[i]);
@@ -301,7 +305,7 @@ function stripData(t){
 let ZS = null; function zahodStarts(){ if (!ZS) ZS = D.cards.filter(c => c.b === 40 && !(D.zseen || {})[c.word]).map(c => c.word).sort(() => Math.random() - .5).slice(0, 14); return ZS; }
 const NAMES = new Set([1, 2, 3, 4, 6, 7, 8, 9, 10, 12, 13, 14, 21, 22, 23, 24, 25, 27]);
 const insertForm = c => { const h = headOf(c.word); return /^[А-ЯЁ][а-яё-]+( [а-яё-]+)*$/.test(h) && !NAMES.has(c.b) ? h.toLowerCase() : h; };
-function drawStrip(){ const el = $('#strip'), t = T(); if (!el || !t) return; const d = stripData(t); STRIP.items = d.items;
+function drawStrip(){ const el = $('#strip'), t = T(); if (!el || !t) return; const ta = $('#ta'); if (ta && document.activeElement === ta && ta.selectionStart !== ta.selectionEnd) return; const d = stripData(t); STRIP.items = d.items;
   const here = tagsHere(t), on = activeTag(t), tb = $('#tagbar'), bar = here.length || on;
   if (tb) { tb.innerHTML = bar ? here.map(x => '<button class="tag t' + x.n + (x.on ? ' on' : '') + '" data-act="tagon" data-v="' + esc(x.on ? on.w : x.w) + '"><b>' + x.k + '</b>' + esc(x.on ? on.w : x.w) + (x.on ? ' <b>×</b>' : '') + '</button>').join('') + '<button class="tag plus" data-act="tags">другое слово ✎</button>' : ''; tb.style.display = bar ? '' : 'none'; }
   el.innerHTML = (bar ? '' : d.word ? '<button class="tag auto on" data-act="tags">к «' + esc(d.word) + '» ✎</button>' : t.lines.some(l => l.t.trim()) ? '<button class="tag auto" data-act="tags">рифма к… ✎</button>' : '') + d.items.map((x, k) => '<button class="sug' + (x.kind === 'd' || x.kind === 'rd' ? ' d' : x.kind === 's' ? ' s' : '') + (x.ci !== null && x.ci !== undefined ? ' has' : '') + '" data-act="sug" data-k="' + x.kind + '" data-v="' + k + '" data-hold="' + (x.ci !== null && x.ci !== undefined ? D.cards[x.ci].id : '') + '" data-w="' + esc(x.w) + '">' + esc(x.w) + '</button>').join('');
@@ -431,6 +435,10 @@ document.addEventListener('contextmenu', e => { if (e.target.closest('[data-hold
 
 // ---------- шторки ----------
 function sheet(title, sub, body){ return '<div class="veil" data-act="close"></div><div class="sheet"><div class="sh"><div class="grab"></div><button class="x" data-act="close">✕</button><div class="st">' + title + '</div>' + (sub ? '<div class="ss">' + sub + '</div>' : '') + '</div><div class="sb">' + body + '</div></div>'; }
+(() => { let lock = false; const scrolls = el => { for (; el && el !== document.body; el = el.parentElement) { const cs = getComputedStyle(el);
+    if ((/(auto|scroll)/.test(cs.overflowY) && el.scrollHeight > el.clientHeight + 1) || (/(auto|scroll)/.test(cs.overflowX) && el.scrollWidth > el.clientWidth + 1)) return true; } return false; };
+  document.addEventListener('touchstart', e => { const t = e.target; lock = !(t.closest && t.closest('input, textarea, select, #card, .swrow, .tpad, .pad')) && !scrolls(t); }, { passive:true });
+  document.addEventListener('touchmove', e => { if (lock && e.cancelable) e.preventDefault(); }, { passive:false }); })();
 // шторка закрывается свайпом вниз: за шапку — всегда, за содержимое — когда оно прокручено к началу
 (() => { let sh = null, y0 = 0, x0 = 0, dy = 0, t0 = 0, go = false;
   document.addEventListener('touchstart', e => { const s = e.target.closest && e.target.closest('.sheet'); sh = null; if (!s || e.touches.length > 1 || e.target.closest('#card, input, textarea, select, [type=range]')) return;
@@ -630,7 +638,7 @@ function renderSheet(){
       '<div class="grid6"><button class="big" data-act="sheet" data-v="why">Почему?<small>вопрос к строке</small></button><button class="big" data-act="sheet" data-v="zahod">Заход<small>начало строки</small></button><button class="big" data-act="sheet" data-v="rhythm"' + (can ? '' : ' disabled') + '>Ритм<small>отстучать строку</small></button><button class="big" data-act="starmore"' + (l.t ? '' : ' disabled') + '>' + (l.star ? '★ Годное' : '☆ Годное') + '<small>отметить строку</small></button>' +
       '<button class="big" data-act="sheet" data-v="ask">Спросить у ИИ<small>готовый запрос</small></button><button class="big" data-act="beatopen">Бит и метроном<small>темп, бит под текстом</small></button><button class="big" data-act="fragcur">Мысль<small>двигать, склеить, в запас</small></button></div>'); }
   else if (k === 'menu') L.innerHTML = sheet(esc(titleOf(t)), '',
-      '<button class="btn big" data-act="copytext">Скопировать весь текст</button>' + (t.lines.some(l => cleanText(l.t) !== l.t) ? '<button class="btn big" data-act="copyclean">Скопировать чисто, без растяжек и ударений</button>' : '') + '<button class="btn big" data-act="new">＋ Новый текст</button>' +
+      '<button class="btn big" data-act="copytext">Скопировать весь текст</button>' + (t.lines.some(l => cleanText(l.t) !== l.t) ? '<button class="btn big" data-act="copyclean">Скопировать чисто, без растяжек и ударений</button>' : '') + '<button class="btn big" data-act="pin" data-v="' + t.id + '">' + (t.pinned ? 'Открепить' : 'Закрепить наверху') + '</button><button class="btn big" data-act="new">＋ Новый текст</button>' +
       (curLine() ? '<button class="btn big" data-act="delline">Удалить строку ' + (S.cur + 1) + '</button>' : '') + '<button class="btn big danger" data-act="deltext">Удалить текст</button>');
   else if (k === 'confirmdel') L.innerHTML = sheet('Удалить текст?', 'это нельзя отменить, если нет сохранённой копии', '<button class="btn big danger" data-act="deltextyes">Да, удалить</button><button class="btn big" data-act="close">Отмена</button>');
 }
@@ -974,6 +982,7 @@ function act(a, v, el){
       if (S.mode === 'write') { S.focusTA = true; S.caret = t.lines.slice(0, at).map(l => l.t).join(String.fromCharCode(10)).length + 1; }
       render(); toast('Следующая строка закончится на «' + v + '»'); break; }
     case 'arch': { const x = texts.get(v); x.archived = true; putNow(x); render(); toastUndo('В архиве', () => { x.archived = false; putNow(x); render(); }); break; }
+    case 'pin': { const x = texts.get(v); if (!x) break; x.pinned = !x.pinned; putNow(x); if (S.sheet) { S.sheet = null; S.sd = {}; } render(); toast(x.pinned ? 'Закрепил наверху' : 'Открепил'); break; }
     case 'unarch': { const x = texts.get(v); x.archived = false; putNow(x); render(); toast('Вернул в тексты'); break; }
     case 'sdel': { const x = texts.get(v); delText(v); render(); toastUndo('Текст удалён', () => { texts.set(x.id, x); putNow(x); render(); }); break; }
     case 'undo': { const f = undoFn; undoFn = null; $('#toast').classList.remove('on', 'undo'); if (f) f(); break; }
