@@ -5,7 +5,7 @@ import { loadEndings, endingsReady, endings, frameOf, topicBlocks, assocOf, expa
 import { loadPunch, punchReady, punchStress, marked, punOf, turnsOf, candidates, leadWords } from './punch.js';
 import { onHum, loadTakes, takes, takeBy, takesOf, putTake, dropTake, fileOf, startRec, stopRec, recOn, recState, recSupported, onRecAuto, playing, playPos, warm, togglePlay, setLoop, stopPlay, seek, beats } from './hum.js';
 import { onBeat, beatState, beatPhase, beatPos, beatDur, stopBeat, startMetro, startBeat, holdBeat, wakeBeat, seekBeat, setBpm, setVol, setClick, setWood, WOODS, tap, tapReset } from './beat.js';
-const VERSION = '2.0.9';
+const VERSION = '2.1.0';
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c]));
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
@@ -68,7 +68,7 @@ function renderHome(){
   const recent = [...texts.values()].filter(t => !t.archived).sort((a, b) => b.updated - a.updated), last = recent.find(t => t.lines.some(l => l.t.trim())), pins = recent.filter(t => t.pinned && t !== last), rest = recent.filter(t => t !== last && !t.pinned).slice(0, 4);
   let h = '<textarea id="home" class="askin" rows="1" enterkeyhint="done" placeholder="Слово, чувство или строка…">' + esc(S.homeV || '') + '</textarea><div class="homeacts" id="homeacts"></div>';
   if (last) { const ls = last.lines.filter(l => l.t.trim() && !goalOf(l)), line = (ls[ls.length - 1] || last.lines.find(l => l.t.trim())).t, st = D.ready ? stockFor(line, 4) : [];
-    h += '<div class="grp">Остановился здесь</div><div class="last"><button class="lastb" data-act="open" data-v="' + last.id + '"><span class="k">' + esc(titleOf(last).slice(0, 40)) + ' · ' + fmtDate(last.updated) + '</span><span class="v">' + esc(line) + '</span></button>' +
+    h += '<div class="grp">Остановился здесь</div><div class="last"><button class="lastpin' + (last.pinned ? ' on' : '') + '" data-act="pin" data-v="' + last.id + '" aria-label="' + (last.pinned ? 'Открепить' : 'Закрепить') + '">📌</button><button class="lastb" data-act="open" data-v="' + last.id + '"><span class="k">' + esc(titleOf(last).slice(0, 40)) + ' · ' + fmtDate(last.updated) + '</span><span class="v">' + esc(line) + '</span></button>' +
       (st.length ? '<div class="k2">в запасе к этой строке</div><div class="chips">' + st.map(x => '<button class="chip rh" data-act="stockopen" data-v="' + esc(x.t) + '">' + esc(x.t.length > 34 ? x.t.slice(0, 33) + '…' : x.t) + '</button>').join('') + '</div>' : '') + '</div>'; }
   if (pins.length) h += '<div class="grp">Закреплённые</div>' + pins.map(t => itemHTML(t)).join('');
   if (rest.length) h += '<div class="grp">Ещё тексты</div>' + rest.map(t => itemHTML(t)).join('');
